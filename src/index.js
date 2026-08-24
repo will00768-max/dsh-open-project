@@ -339,8 +339,9 @@ const quote = (s) => '"' + String(s).replace(/"/g, '\\"') + '"'
 // fallback) actually run the tool instead of failing with %1 is not a valid
 // Win32 application (0x800700c1).
 function launchArgs(exe) {
-  if (/\.ps1$/i.test(exe)) return ['powershell.exe', '-NoExit', '-File', exe]
-  if (/\.(cmd|bat)$/i.test(exe)) return ['cmd.exe', '/k', exe]
+  const e = String(exe).toLowerCase()
+  if (e.endsWith('.ps1')) return ['powershell.exe', '-NoExit', '-File', exe]
+  if (e.endsWith('.cmd') || e.endsWith('.bat')) return ['cmd.exe', '/k', exe]
   return [exe]
 }
 
@@ -365,7 +366,7 @@ function buildArgv(app, path, plat, detected) {
     if (plat === 'win') {
       const wt = (detected || []).find((a) => a.mode === 'terminal' || a.id === 'winterm')
       if (wt) return [wt.exe, '-d', path].concat(launchArgs(app.exe))
-      if (/cmd\.exe$/i.test(app.exe)) return ['cmd.exe', '/c', 'start', '', 'cmd.exe', '/k', 'cd /d ' + quote(path)]
+      if (String(app.exe).toLowerCase().endsWith('cmd.exe')) return ['cmd.exe', '/c', 'start', '', 'cmd.exe', '/k', 'cd /d ' + quote(path)]
       return [app.exe, '-NoExit', '-Command', 'Set-Location -LiteralPath ' + quote(path)]
     }
     if (plat === 'mac') return ['open', '-a', 'Terminal', path]
