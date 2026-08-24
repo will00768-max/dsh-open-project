@@ -1,10 +1,10 @@
-# Mount the dsh-open-with plugin. Add this to your profile's cordis.patch.yml
+# Mount the dsh-open-project plugin. Add this to your profile's cordis.patch.yml
 # (or the Web bundle used by the running deployment), then install the package:
 #
-#   dsh plugin --profile <name> add dsh-open-with
+#   dsh plugin --profile <name> add dsh-open-project
 #
 # and add the row below:
 #
 - insert:
     - id: open-with
-      name: dsh-open-with
+      name: dsh-open-project

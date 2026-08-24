@@ -1,30 +1,35 @@
-// Host half of the dsh-open-with plugin.
+// Host half of the dsh-open-project plugin.
 //
-// Detects the editors and terminals installed on the machine (Windows), pulls a
-// real app icon out of each launcher, and launches the chosen one with the
-// current project folder. The browser half calls back into these two
-// package-private RPC methods:
+// Detects the editors, IDEs, and terminals installed on the machine (Windows),
+// pulls a real app icon out of each launcher, and launches the chosen one with
+// the current project folder. The browser half calls back into two package-
+// private RPC methods:
 //
-//   harness.handle('list-apps')  -> [{ id, label, exe, icon }, ...]
+//   harness.handle('list-apps')  -> [{ id, label, exe, mode, icon }, ...]
 //   harness.handle('open-with')  -> { ok, error? }   (args: { appId, path })
 //
-// `icon` is a `data:image/png;base64,` URL so the browser can render the real
-// product logo without extra assets. Detection returns only what is installed;
-// cmd, powershell, and explorer are present on every Windows host.
+// Detection is fully dynamic: the catalog below probes App Paths registry,
+// PATH commands, common install locations, and the Uninstall registry, and only
+// apps that are actually installed are returned. `mode` tells the launcher how
+// to open each app: 'gui' (folder argument), 'term' (CLI tool inside a
+// terminal), 'shell' (PowerShell/Command Prompt), 'terminal' (Windows Terminal),
+// or 'explorer'. cmd, powershell, and explorer are present on every Windows
+// host.
 
-export const name = 'open-with'
+export const name = 'dsh-open-project'
 export const inject = []
 
 // Windows PowerShell detection script. Prints one JSON array of
-// { id, label, exe, icon } for every launcher that exists on this host. Each
-// icon is extracted from the executable via System.Drawing (the actual Windows
-// application icon). Single-quoted string literals keep the -Command argument
-// free of double-quote parsing issues. This is the same script shipped as
-// src/detect.ps1.
+// { id, label, exe, mode, icon } for every launcher that exists on this host.
+// Each icon is extracted from the executable via System.Drawing. Single-quoted
+// string literals keep the -Command argument free of double-quote parsing
+// issues. This is the same script shipped as src/detect.ps1.
 export const DETECT_SCRIPT = String.raw`
 $ErrorActionPreference='SilentlyContinue'
 Add-Type -AssemblyName System.Drawing
+$pf=$env:ProgramFiles; $pf86=[Environment]::GetEnvironmentVariable('ProgramFiles(x86)'); $la=$env:LOCALAPPDATA; $sys=$env:SystemRoot
 function Get-IconB64($exe){
+  if(-not $exe -or -not (Test-Path $exe)){ return '' }
   try {
     $icon=[System.Drawing.Icon]::ExtractAssociatedIcon($exe)
     if($null -eq $icon){ return '' }
@@ -36,42 +41,111 @@ function Get-IconB64($exe){
     return 'data:image/png;base64,' + $b64
   } catch { return '' }
 }
-function RegExe($k){ [string](Get-ItemProperty ('Registry::HKEY_CURRENT_USER\SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\'+$k) -ErrorAction SilentlyContinue).'(default)' }
+$uninstalls=@()
+foreach($root in @('HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*','HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*','HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*')){
+  $uninstalls += @(Get-ItemProperty $root | Where-Object { $_.DisplayName })
+}
+function Resolve-Uninstall($keywords){
+  foreach($u in $uninstalls){
+    foreach($kw in $keywords){
+      if($u.DisplayName -like ('*'+$kw+'*')){
+        $icon=$u.DisplayIcon
+        if($icon){
+          $icon = ($icon -replace ',[0-9]+\s*$','') -replace '^"','' -replace '"$',''
+          if((Test-Path $icon) -and $icon -match '\.exe$'){ return $icon }
+        }
+        $loc=$u.InstallLocation
+        if($loc -and (Test-Path $loc)){
+          $cand=Get-ChildItem $loc -Filter *.exe -File -ErrorAction SilentlyContinue | Where-Object { $_.Name -notlike 'unins*' -and $_.Name -notlike 'elevat*' } | Select-Object -First 1
+          if($cand){ return $cand.FullName }
+        }
+      }
+    }
+  }
+  return ''
+}
+function Resolve-App($p){
+  if($p.paths){ foreach($x in $p.paths){ if($x -and (Test-Path $x)){ return $x } } }
+  if($p.appPath){
+    foreach($hive in @('HKCU','HKLM')){
+      $k=($hive+':\SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\' + $p.appPath)
+      $val=[string](Get-ItemProperty $k -ErrorAction SilentlyContinue).'(default)'
+      if($val -and (Test-Path $val)){ return $val }
+    }
+  }
+  if($p.command){ $c=Get-Command $p.command -ErrorAction SilentlyContinue; if($c -and $c.Source){ return $c.Source } }
+  if($p.uninstall){ $r=Resolve-Uninstall $p.uninstall; if($r){ return $r } }
+  return ''
+}
+$catalog=@(
+  @{id='vscode';label='VS Code';mode='gui';paths=@("$pf\Microsoft VS Code\Code.exe","$pf86\Microsoft VS Code\Code.exe");appPath='Code.exe';command='code';uninstall=@('Visual Studio Code')},
+  @{id='vscode-insiders';label='VS Code Insiders';mode='gui';appPath='Code - Insiders.exe';command='code-insiders';uninstall=@('Visual Studio Code - Insiders')},
+  @{id='cursor';label='Cursor';mode='gui';paths=@("$la\Programs\cursor\Cursor.exe");appPath='Cursor.exe';command='cursor';uninstall=@('Cursor')},
+  @{id='trae';label='Trae';mode='gui';paths=@("$la\Programs\Trae\Trae.exe","$la\Programs\Trae CN\Trae.exe");command='trae';uninstall=@('TraeCode','Trae Code','Trae CN')},
+  @{id='trae-work';label='Trae Work';mode='gui';uninstall=@('TraeWork','TRAE SOLO')},
+  @{id='zed';label='Zed';mode='gui';paths=@("$la\Programs\Zed\Zed.exe");command='zed';uninstall=@('Zed')},
+  @{id='windsurf';label='Windsurf';mode='gui';paths=@("$la\Programs\Windsurf\Windsurf.exe");command='windsurf';uninstall=@('Windsurf','Codeium')},
+  @{id='codium';label='VSCodium';mode='gui';paths=@("$la\Programs\VSCodium\VSCodium.exe");appPath='VSCodium.exe';command='codium';uninstall=@('VSCodium')},
+  @{id='sublime';label='Sublime Text';mode='gui';paths=@("$pf\Sublime Text 3\sublime_text.exe","$la\Programs\Sublime Text 3\sublime_text.exe");command='subl';uninstall=@('Sublime Text')},
+  @{id='notepadpp';label='Notepad++';mode='gui';paths=@("$pf\Notepad++\notepad++.exe","$pf86\Notepad++\notepad++.exe");uninstall=@('Notepad++')},
+  @{id='datagrip';label='DataGrip';mode='gui';appPath='datagrip64.exe';uninstall=@('DataGrip')},
+  @{id='intellij';label='IntelliJ IDEA';mode='gui';appPath='idea64.exe';command='idea';uninstall=@('IntelliJ IDEA')},
+  @{id='pycharm';label='PyCharm';mode='gui';appPath='pycharm64.exe';command='pycharm';uninstall=@('PyCharm')},
+  @{id='goland';label='GoLand';mode='gui';appPath='goland64.exe';command='goland';uninstall=@('GoLand')},
+  @{id='webstorm';label='WebStorm';mode='gui';appPath='webstorm64.exe';command='webstorm';uninstall=@('WebStorm')},
+  @{id='phpstorm';label='PhpStorm';mode='gui';appPath='phpstorm64.exe';command='phpstorm';uninstall=@('PhpStorm')},
+  @{id='rubymine';label='RubyMine';mode='gui';appPath='rubymine64.exe';command='rubymine';uninstall=@('RubyMine')},
+  @{id='clion';label='CLion';mode='gui';appPath='clion64.exe';command='clion';uninstall=@('CLion')},
+  @{id='rider';label='Rider';mode='gui';appPath='rider64.exe';command='rider';uninstall=@('Rider')},
+  @{id='androidstudio';label='Android Studio';mode='gui';appPath='studio64.exe';command='studio';uninstall=@('Android Studio')},
+  @{id='eclipse';label='Eclipse';mode='gui';uninstall=@('Eclipse')},
+  @{id='netbeans';label='NetBeans';mode='gui';uninstall=@('NetBeans')},
+  @{id='opencode';label='OpenCode';mode='term';command='opencode'},
+  @{id='nvim';label='Neovim';mode='term';command='nvim';uninstall=@('Neovim')},
+  @{id='helix';label='Helix';mode='term';command='hx'},
+  @{id='micro';label='Micro';mode='term';command='micro'},
+  @{id='winterm';label='Windows Terminal';mode='terminal';command='wt'},
+  @{id='pwsh';label='PowerShell 7';mode='shell';command='pwsh'},
+  @{id='alacritty';label='Alacritty';mode='term';command='alacritty';uninstall=@('Alacritty')},
+  @{id='wezterm';label='WezTerm';mode='term';command='wezterm-gui';uninstall=@('WezTerm')},
+  @{id='tabby';label='Tabby';mode='term';uninstall=@('Tabby')},
+  @{id='warp';label='Warp';mode='term';uninstall=@('Warp')},
+  @{id='conemu';label='ConEmu';mode='term';uninstall=@('ConEmu')},
+  @{id='cmder';label='Cmder';mode='term';uninstall=@('Cmder')}
+)
 $list=@()
-$ce = RegExe 'Code.exe'; if(-not $ce){ $ce=[string](Get-ItemProperty ('Registry::HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\Code.exe') -ErrorAction SilentlyContinue).'(default)' }
-if(-not $ce){ $c=Get-Command code -ErrorAction SilentlyContinue; if($c){$ce=$c.Source} }
-if($ce){ $list += [ordered]@{id='vscode';label='VS Code';exe=$ce;icon=(Get-IconB64 $ce)} }
-$ze = Join-Path $env:LOCALAPPDATA 'Programs\Zed\Zed.exe'
-if(-not (Test-Path $ze)){ $c=Get-Command zed -ErrorAction SilentlyContinue; if($c){$ze=$c.Source} }
-if(Test-Path $ze){ $list += [ordered]@{id='zed';label='Zed';exe=$ze;icon=(Get-IconB64 $ze)} }
-$de = RegExe 'datagrip64.exe'; if(-not $de){ $c=Get-Command datagrip -ErrorAction SilentlyContinue; if($c){$de=$c.Source} }
-if($de -match 'datagrip\.bat$'){ $de = $de -replace 'datagrip\.bat$','datagrip64.exe' }
-if($de){ $list += [ordered]@{id='datagrip';label='DataGrip';exe=$de;icon=(Get-IconB64 $de)} }
-$wtc=Get-Command wt -ErrorAction SilentlyContinue; $wt=if($wtc){$wtc.Source}else{''}
-if($wt){ $list += [ordered]@{id='winterm';label='Windows Terminal';exe=$wt;icon=(Get-IconB64 (Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'))} }
-$list += [ordered]@{id='powershell';label='PowerShell';exe=(Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe');icon=(Get-IconB64 (Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'))}
-$list += [ordered]@{id='cmd';label='Command Prompt';exe=(Join-Path $env:SystemRoot 'System32\cmd.exe');icon=(Get-IconB64 (Join-Path $env:SystemRoot 'System32\cmd.exe'))}
-$list += [ordered]@{id='explorer';label='File Explorer';exe=(Join-Path $env:SystemRoot 'explorer.exe');icon=(Get-IconB64 (Join-Path $env:SystemRoot 'explorer.exe'))}
+foreach($a in $catalog){
+  $exe=Resolve-App $a
+  if($exe){ $list += [ordered]@{id=$a.id;label=$a.label;exe=$exe;mode=$a.mode;icon=(Get-IconB64 $exe)} }
+}
+$list += [ordered]@{id='powershell';label='PowerShell';exe=(Join-Path $sys 'System32\WindowsPowerShell\v1.0\powershell.exe');mode='shell';icon=(Get-IconB64 (Join-Path $sys 'System32\WindowsPowerShell\v1.0\powershell.exe'))}
+$list += [ordered]@{id='cmd';label='Command Prompt';exe=(Join-Path $sys 'System32\cmd.exe');mode='shell';icon=(Get-IconB64 (Join-Path $sys 'System32\cmd.exe'))}
+$list += [ordered]@{id='explorer';label='File Explorer';exe=(Join-Path $sys 'explorer.exe');mode='explorer';icon=(Get-IconB64 (Join-Path $sys 'explorer.exe'))}
 $list | ConvertTo-Json -Compress`
 
-// Build the exact argv for one app and the target folder. Terminal apps are
-// opened through Windows Terminal when it is installed so they get their own
-// window and start in the project folder; otherwise a best-effort direct spawn
-// is used.
+const baseName = (p) => { const s = String(p); const i = s.lastIndexOf('\\'); return i >= 0 ? s.slice(i + 1) : s }
+
+// Build the exact argv for one app and the target folder. The `mode` returned
+// by detection decides how the app is opened: GUI editors/IDEs take the folder
+// argument themselves; CLI tools (OpenCode, Neovim, …) and shells run inside
+// Windows Terminal when it is installed; Windows Terminal just starts in the
+// folder; File Explorer opens the folder.
 function buildArgv(app, path, detected) {
-  const wt = (detected || []).find((a) => a.id === 'winterm')
+  const wt = (detected || []).find((a) => a.mode === 'terminal' || a.id === 'winterm')
+  const mode = app.mode || 'gui'
   const quote = (s) => '"' + String(s).replace(/"/g, '\\"') + '"'
-  if (app.id === 'winterm') return [app.exe, '-d', path]
-  if (app.id === 'powershell') {
-    if (wt) return [wt.exe, '-d', path, 'powershell.exe']
+  if (mode === 'shell') {
+    const name = baseName(app.exe)
+    if (wt) return [wt.exe, '-d', path, name]
+    if (/cmd\.exe$/i.test(app.exe)) return ['cmd.exe', '/c', 'start', '', 'cmd.exe', '/k', 'cd /d ' + quote(path)]
     return [app.exe, '-NoExit', '-Command', 'Set-Location -LiteralPath ' + quote(path)]
   }
-  if (app.id === 'cmd') {
-    if (wt) return [wt.exe, '-d', path, 'cmd.exe']
-    return ['cmd.exe', '/c', 'start', '', 'cmd.exe', '/k', 'cd /d ' + quote(path)]
+  if (mode === 'term') {
+    if (wt) return [wt.exe, '-d', path, app.exe]
+    return ['cmd.exe', '/c', 'start', '', 'cmd.exe', '/k', quote(app.exe)]
   }
-  // GUI apps (VS Code, Zed, DataGrip, File Explorer) accept the folder path.
-  return [app.exe, path]
+  if (mode === 'terminal') return [app.exe, '-d', path]
+  return [app.exe, path] // gui / explorer
 }
 
 export function apply(ctx) {

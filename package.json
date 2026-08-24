@@ -1,10 +1,10 @@
 {
-  "name": "dsh-open-with",
+  "name": "dsh-open-project",
   "version": "0.1.0",
   "description": "Open the current project folder with a detected editor or terminal from the conversation header.",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/will00768-max/dsh-open-with.git"
+    "url": "git+https://github.com/will00768-max/dsh-open-project.git"
   },
   "type": "module",
   "main": "./src/index.js",
