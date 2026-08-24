@@ -51,17 +51,39 @@ function Resolve-App($p){
   return ''
 }
 $catalog=@(
+  # --- Microsoft / VS Code family ---
   @{id='vscode';label='VS Code';mode='gui';paths=@("$pf\Microsoft VS Code\Code.exe","$pf86\Microsoft VS Code\Code.exe");appPath='Code.exe';command='code';uninstall=@('Visual Studio Code')},
-  @{id='vscode-insiders';label='VS Code Insiders';mode='gui';appPath='Code - Insiders.exe';command='code-insiders';uninstall=@('Visual Studio Code - Insiders')},
+  @{id='vscode-insiders';label='VS Code Insiders';mode='gui';paths=@("$pf\Microsoft VS Code - Insiders\Code - Insiders.exe","$pf86\Microsoft VS Code - Insiders\Code - Insiders.exe");appPath='Code - Insiders.exe';command='code-insiders';uninstall=@('Visual Studio Code - Insiders')},
+  @{id='codium';label='VSCodium';mode='gui';paths=@("$la\Programs\VSCodium\VSCodium.exe");appPath='VSCodium.exe';command='codium';uninstall=@('VSCodium')},
+  @{id='visualstudio';label='Visual Studio';mode='gui';appPath='devenv.exe';command='devenv';uninstall=@('Visual Studio Community','Visual Studio Professional','Visual Studio Enterprise')},
+  @{id='wsl-vscode';label='VsCode WSL';mode='gui';command='code-wsl'},
+
+  # --- AI editors ---
   @{id='cursor';label='Cursor';mode='gui';paths=@("$la\Programs\cursor\Cursor.exe");appPath='Cursor.exe';command='cursor';uninstall=@('Cursor')},
+  @{id='windsurf';label='Windsurf';mode='gui';paths=@("$la\Programs\Windsurf\Windsurf.exe","$la\Programs\windsurf\Windsurf.exe");command='windsurf';uninstall=@('Windsurf','Codeium')},
   @{id='trae';label='Trae';mode='gui';paths=@("$la\Programs\Trae\Trae.exe","$la\Programs\Trae CN\Trae.exe");command='trae';uninstall=@('TraeCode','Trae Code','Trae CN')},
   @{id='trae-work';label='Trae Work';mode='gui';uninstall=@('TraeWork','TRAE SOLO')},
+  @{id='codegpt';label='CodeGPT';mode='gui';command='codegpt';uninstall=@('CodeGPT')},
+
+  # --- General editors ---
   @{id='zed';label='Zed';mode='gui';paths=@("$la\Programs\Zed\Zed.exe");command='zed';uninstall=@('Zed')},
-  @{id='windsurf';label='Windsurf';mode='gui';paths=@("$la\Programs\Windsurf\Windsurf.exe");command='windsurf';uninstall=@('Windsurf','Codeium')},
-  @{id='codium';label='VSCodium';mode='gui';paths=@("$la\Programs\VSCodium\VSCodium.exe");appPath='VSCodium.exe';command='codium';uninstall=@('VSCodium')},
-  @{id='sublime';label='Sublime Text';mode='gui';paths=@("$pf\Sublime Text 3\sublime_text.exe","$la\Programs\Sublime Text 3\sublime_text.exe");command='subl';uninstall=@('Sublime Text')},
+  @{id='sublime';label='Sublime Text';mode='gui';paths=@("$pf\Sublime Text 3\sublime_text.exe","$pf86\Sublime Text 3\sublime_text.exe","$la\Programs\Sublime Text 3\sublime_text.exe");command='subl';uninstall=@('Sublime Text')},
   @{id='notepadpp';label='Notepad++';mode='gui';paths=@("$pf\Notepad++\notepad++.exe","$pf86\Notepad++\notepad++.exe");uninstall=@('Notepad++')},
-  @{id='datagrip';label='DataGrip';mode='gui';appPath='datagrip64.exe';uninstall=@('DataGrip')},
+  @{id='atom';label='Atom';mode='gui';paths=@("$pf\Atom\atom.exe","$pf86\Atom\atom.exe");command='atom';uninstall=@('Atom')},
+  @{id='pulsar';label='Pulsar';mode='gui';command='pulsar';uninstall=@('Pulsar')},
+  @{id='brackets';label='Brackets';mode='gui';command='brackets';uninstall=@('Brackets')},
+  @{id='geany';label='Geany';mode='gui';paths=@("$pf\Geany\bin\geany.exe");command='geany';uninstall=@('Geany')},
+  @{id='kate';label='Kate';mode='gui';command='kate';uninstall=@('Kate')},
+  @{id='notepadqq';label='Notepadqq';mode='gui';uninstall=@('Notepadqq')},
+  @{id='ultraedit';label='UltraEdit';mode='gui';command='uedit32';uninstall=@('UltraEdit')},
+  @{id='emeditor';label='EmEditor';mode='gui';uninstall=@('EmEditor')},
+  @{id='textpad';label='TextPad';mode='gui';uninstall=@('TextPad')},
+  @{id='komodo';label='Komodo Edit';mode='gui';command='komodo';uninstall=@('Komodo')},
+  @{id='bluefish';label='Bluefish';mode='gui';uninstall=@('Bluefish')},
+
+  # --- JetBrains ---
+  @{id='datagrip';label='DataGrip';mode='gui';appPath='datagrip64.exe';command='datagrip';uninstall=@('DataGrip')},
+  @{id='dataspell';label='DataSpell';mode='gui';appPath='dataspell64.exe';command='dataspell';uninstall=@('DataSpell')},
   @{id='intellij';label='IntelliJ IDEA';mode='gui';appPath='idea64.exe';command='idea';uninstall=@('IntelliJ IDEA')},
   @{id='pycharm';label='PyCharm';mode='gui';appPath='pycharm64.exe';command='pycharm';uninstall=@('PyCharm')},
   @{id='goland';label='GoLand';mode='gui';appPath='goland64.exe';command='goland';uninstall=@('GoLand')},
@@ -70,21 +92,76 @@ $catalog=@(
   @{id='rubymine';label='RubyMine';mode='gui';appPath='rubymine64.exe';command='rubymine';uninstall=@('RubyMine')},
   @{id='clion';label='CLion';mode='gui';appPath='clion64.exe';command='clion';uninstall=@('CLion')},
   @{id='rider';label='Rider';mode='gui';appPath='rider64.exe';command='rider';uninstall=@('Rider')},
+  @{id='aqua';label='Aqua';mode='gui';appPath='aqua64.exe';command='aqua';uninstall=@('Aqua')},
+  @{id='fleet';label='Fleet';mode='gui';command='fleet';uninstall=@('Fleet')},
   @{id='androidstudio';label='Android Studio';mode='gui';appPath='studio64.exe';command='studio';uninstall=@('Android Studio')},
-  @{id='eclipse';label='Eclipse';mode='gui';uninstall=@('Eclipse')},
-  @{id='netbeans';label='NetBeans';mode='gui';uninstall=@('NetBeans')},
-  @{id='opencode';label='OpenCode';mode='term';command='opencode'},
+
+  # --- Other IDEs ---
+  @{id='eclipse';label='Eclipse';mode='gui';command='eclipse';uninstall=@('Eclipse IDE','Eclipse')},
+  @{id='netbeans';label='NetBeans';mode='gui';command='netbeans';uninstall=@('NetBeans')},
+  @{id='qtcreator';label='Qt Creator';mode='gui';command='qtcreator';uninstall=@('Qt Creator')},
+  @{id='codeblocks';label='Code::Blocks';mode='gui';uninstall=@('Code::Blocks')},
+  @{id='devcpp';label='Dev-C++';mode='gui';uninstall=@('Dev-C++')},
+  @{id='codelite';label='CodeLite';mode='gui';uninstall=@('CodeLite')},
+  @{id='kdevelop';label='KDevelop';mode='gui';uninstall=@('KDevelop')},
+  @{id='ninjaide';label='Ninja-IDE';mode='gui';uninstall=@('Ninja-IDE')},
+  @{id='rstudio';label='RStudio';mode='gui';command='rstudio';uninstall=@('RStudio')},
+  @{id='spyder';label='Spyder';mode='gui';command='spyder';uninstall=@('Spyder')},
+  @{id='thonny';label='Thonny';mode='gui';command='thonny';uninstall=@('Thonny')},
+  @{id='matlab';label='MATLAB';mode='gui';command='matlab';uninstall=@('MATLAB')},
+  @{id='octave';label='GNU Octave';mode='gui';command='octave';uninstall=@('GNU Octave')},
+  @{id='pycharm-community';label='PyCharm CE';mode='gui';appPath='pycharm64.exe';command='charm';uninstall=@('PyCharm Community')},
+
+  # --- Terminal editors / CLIs ---
+  @{id='vim';label='Vim';mode='gui';command='gvim';uninstall=@('Vim')},
   @{id='nvim';label='Neovim';mode='term';command='nvim';uninstall=@('Neovim')},
   @{id='helix';label='Helix';mode='term';command='hx'},
   @{id='micro';label='Micro';mode='term';command='micro'},
+  @{id='emacs';label='Emacs';mode='gui';command='emacs';uninstall=@('GNU Emacs')},
+
+  # --- AI CLI tools ---
+  @{id='opencode';label='OpenCode';mode='term';command='opencode'},
+  @{id='codex';label='Codex CLI';mode='term';command='codex'},
+  @{id='claude';label='Claude Code';mode='term';command='claude'},
+  @{id='aider';label='Aider';mode='term';command='aider'},
+  @{id='gemini';label='Gemini CLI';mode='term';command='gemini'},
+  @{id='copilot-cli';label='Copilot CLI';mode='term';command='copilot'},
+
+  # --- Terminal emulators ---
   @{id='winterm';label='Windows Terminal';mode='terminal';command='wt'},
+  @{id='wtpreview';label='Windows Terminal Preview';mode='terminal';command='wt';uninstall=@('Windows Terminal Preview')},
   @{id='pwsh';label='PowerShell 7';mode='shell';command='pwsh'},
   @{id='alacritty';label='Alacritty';mode='term';command='alacritty';uninstall=@('Alacritty')},
   @{id='wezterm';label='WezTerm';mode='term';command='wezterm-gui';uninstall=@('WezTerm')},
   @{id='tabby';label='Tabby';mode='term';uninstall=@('Tabby')},
   @{id='warp';label='Warp';mode='term';uninstall=@('Warp')},
-  @{id='conemu';label='ConEmu';mode='term';uninstall=@('ConEmu')},
-  @{id='cmder';label='Cmder';mode='term';uninstall=@('Cmder')}
+  @{id='conemu';label='ConEmu';mode='term';command='ConEmu64';uninstall=@('ConEmu')},
+  @{id='cmder';label='Cmder';mode='term';paths=@("$la\Cmder\Cmder.exe");command='cmder';uninstall=@('Cmder')},
+  @{id='hyper';label='Hyper';mode='term';command='hyper';uninstall=@('Hyper')},
+  @{id='terminus';label='Terminus';mode='term';command='terminus';uninstall=@('Terminus')},
+  @{id='termius';label='Termius';mode='term';command='termius';uninstall=@('Termius')},
+  @{id='mobaxterm';label='MobaXterm';mode='term';command='MobaXterm';uninstall=@('MobaXterm')},
+  @{id='putty';label='PuTTY';mode='term';command='putty';uninstall=@('PuTTY')},
+  @{id='xshell';label='Xshell';mode='term';uninstall=@('Xshell')},
+  @{id='securecrt';label='SecureCRT';mode='term';uninstall=@('SecureCRT')},
+
+  # --- Shells ---
+  @{id='gitbash';label='Git Bash';mode='shell';paths=@("$pf\Git\bin\bash.exe","$pf86\Git\bin\bash.exe");command='bash'},
+  @{id='cygwin';label='Cygwin';mode='shell';paths=@("$pf\Cygwin\bin\bash.exe");uninstall=@('Cygwin')},
+  @{id='msys2';label='MSYS2';mode='shell';paths=@("$pf\msys64\usr\bin\bash.exe");uninstall=@('MSYS2')},
+  @{id='nushell';label='Nushell';mode='term';command='nu'},
+
+  # --- File managers ---
+  @{id='totalcmd';label='Total Commander';mode='explorer';paths=@("$pf\Total Commander\TOTALCMD64.EXE","$pf86\Total\TOTALCMD64.EXE");command='totalcmd';uninstall=@('Total Commander')},
+  @{id='dircop';label='Directory Opus';mode='explorer';uninstall=@('Directory Opus')},
+  @{id='far';label='FAR Manager';mode='explorer';command='far';uninstall=@('FAR Manager')},
+  @{id='doublecmd';label='Double Commander';mode='explorer';uninstall=@('Double Commander')},
+  @{id='freecmd';label='FreeCommander';mode='explorer';uninstall=@('FreeCommander')},
+  @{id='xplorer2';label='xplorer2';mode='explorer';uninstall=@('xplorer2')},
+  @{id='xyplorer';label='XYplorer';mode='explorer';uninstall=@('XYplorer')},
+  @{id='onecmd';label='One Commander';mode='explorer';uninstall=@('One Commander')},
+  @{id='qdir';label='Q-Dir';mode='explorer';uninstall=@('Q-Dir')},
+  @{id='multicmd';label='Multi Commander';mode='explorer';uninstall=@('Multi Commander')}
 )
 $list=@()
 foreach($a in $catalog){
