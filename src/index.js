@@ -333,6 +333,17 @@ const quote = (s) => '"' + String(s).replace(/"/g, '\\"') + '"'
 // on Windows, the default terminal on Unix/macOS); a terminal app just starts
 // in the folder. Terminal launches on Unix/macOS are best-effort and default to
 // gnome-terminal / the macOS Terminal.
+// A launcher may be a Windows shim rather than a real exe: .ps1 (PowerShell
+// script, e.g. npm-installed CLIs) must run under powershell.exe, .cmd/.bat
+// under cmd.exe. Wrapping makes `wt.exe -d <dir> <launcher>` (and the direct
+// fallback) actually run the tool instead of failing with %1 is not a valid
+// Win32 application (0x800700c1).
+function launchArgs(exe) {
+  if (/\.ps1$/i.test(exe)) return ['powershell.exe', '-NoExit', '-File', exe]
+  if (/\.(cmd|bat)$/i.test(exe)) return ['cmd.exe', '/k', exe]
+  return [exe]
+}
+
 function buildArgv(app, path, plat, detected) {
   const mode = app.mode || 'gui'
   if (mode === 'gui' || mode === 'explorer') return [app.exe, path]
@@ -344,16 +355,16 @@ function buildArgv(app, path, plat, detected) {
   if (mode === 'term') {
     if (plat === 'win') {
       const wt = (detected || []).find((a) => a.mode === 'terminal' || a.id === 'winterm')
-      if (wt) return [wt.exe, '-d', path, app.exe]
-      return ['cmd.exe', '/c', 'start', '', 'cmd.exe', '/k', quote(app.exe)]
+      if (wt) return [wt.exe, '-d', path].concat(launchArgs(app.exe))
+      return ['cmd.exe', '/c', 'start', '', 'cmd.exe', '/k'].concat(launchArgs(app.exe))
     }
     if (plat === 'mac') return ['open', '-a', 'Terminal', path]
-    return ['gnome-terminal', '--working-directory=' + path, '--', app.exe]
+    return ['gnome-terminal', '--working-directory=' + path, '--'].concat(launchArgs(app.exe))
   }
   if (mode === 'shell') {
     if (plat === 'win') {
       const wt = (detected || []).find((a) => a.mode === 'terminal' || a.id === 'winterm')
-      if (wt) return [wt.exe, '-d', path, app.exe]
+      if (wt) return [wt.exe, '-d', path].concat(launchArgs(app.exe))
       if (/cmd\.exe$/i.test(app.exe)) return ['cmd.exe', '/c', 'start', '', 'cmd.exe', '/k', 'cd /d ' + quote(path)]
       return [app.exe, '-NoExit', '-Command', 'Set-Location -LiteralPath ' + quote(path)]
     }
