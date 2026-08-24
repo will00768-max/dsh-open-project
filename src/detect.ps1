@@ -50,6 +50,49 @@ function Resolve-App($p){
   if($p.uninstall){ $r=Resolve-Uninstall $p.uninstall; if($r){ return $r } }
   return ''
 }
+# A .bat/.cmd launcher often wraps the real GUI exe (JetBrains: datagrip.bat ->
+# datagrip64.exe). Resolve to the sibling .exe so both launch and icon use the
+# real product executable.
+function Resolve-RealExe($exe){
+  if(-not $exe){ return $exe }
+  if($exe -match '\.(bat|cmd)$'){
+    $dir=Split-Path $exe
+    $base=[IO.Path]::GetFileNameWithoutExtension($exe)
+    $cand=Get-ChildItem $dir -Filter '*.exe' -File -ErrorAction SilentlyContinue | Where-Object { $_.BaseName -like ($base+'*') } | Select-Object -First 1
+    if($cand){ return $cand.FullName }
+  }
+  return $exe
+}
+# Generate a clean colored letter-badge PNG (used when a launcher has no real
+# product icon, e.g. .ps1 CLI shims). Returns a data URL the browser can show
+# directly, so even a plain <img> renders it.
+function Get-LetterBadge($label){
+  try {
+    $t=[string]$label
+    if($t.Length -lt 1){ return '' }
+    $h=0
+    foreach($ch in $t.ToCharArray()){ $h=($h*31+[int]$ch) % 100000 }
+    $palette=@(@(255,87,34),@(63,81,181),@(0,150,136),@(233,30,99),@(56,142,60),@(121,85,72),@(0,137,123),@(103,58,183),@(255,152,0),@(33,150,243),@(0,121,107),@(69,90,100))
+    $idx=$h % $palette.Count
+    $bmp=New-Object System.Drawing.Bitmap(32,32)
+    $g=[System.Drawing.Graphics]::FromImage($bmp)
+    $g.SmoothingMode=[System.Drawing.Drawing2D.SmoothingMode]::AntiAlias
+    $g.TextRenderingHint=[System.Drawing.Text.TextRenderingHint]::AntiAlias
+    $brush=New-Object System.Drawing.SolidBrush([System.Drawing.Color]::FromArgb(255,$palette[$idx][0],$palette[$idx][1],$palette[$idx][2]))
+    $g.FillRectangle($brush,0,0,32,32)
+    $font=New-Object System.Drawing.Font('Segoe UI',15,[System.Drawing.FontStyle]::Bold)
+    $sf=New-Object System.Drawing.StringFormat
+    $sf.Alignment=[System.Drawing.StringAlignment]::Center
+    $sf.LineAlignment=[System.Drawing.StringAlignment]::Center
+    $ch0=$t.Substring(0,1).ToUpper()
+    $g.DrawString($ch0,$font,[System.Drawing.Brushes]::White,(New-Object System.Drawing.RectangleF(0,0,32,32)),$sf)
+    $ms=New-Object System.IO.MemoryStream
+    $bmp.Save($ms,[System.Drawing.Imaging.ImageFormat]::Png)
+    $b64=[Convert]::ToBase64String($ms.ToArray())
+    $g.Dispose();$brush.Dispose();$bmp.Dispose();$font.Dispose();$sf.Dispose();$ms.Dispose()
+    return 'data:image/png;base64,' + $b64
+  } catch { return '' }
+}
 $catalog=@(
   # --- Microsoft / VS Code family ---
   @{id='vscode';label='VS Code';mode='gui';paths=@("$pf\Microsoft VS Code\Code.exe","$pf86\Microsoft VS Code\Code.exe");appPath='Code.exe';command='code';uninstall=@('Visual Studio Code')},
@@ -145,7 +188,7 @@ $catalog=@(
   @{id='securecrt';label='SecureCRT';mode='term';uninstall=@('SecureCRT')},
 
   # --- Shells ---
-  @{id='gitbash';label='Git Bash';mode='shell';paths=@("$pf\Git\bin\bash.exe","$pf86\Git\bin\bash.exe");command='bash'},
+  @{id='gitbash';label='Git Bash';mode='shell';paths=@("$pf\Git\git-bash.exe","$pf86\Git\git-bash.exe","$pf\Git\bin\bash.exe","$pf86\Git\bin\bash.exe");command='bash'},
   @{id='cygwin';label='Cygwin';mode='shell';paths=@("$pf\Cygwin\bin\bash.exe");uninstall=@('Cygwin')},
   @{id='msys2';label='MSYS2';mode='shell';paths=@("$pf\msys64\usr\bin\bash.exe");uninstall=@('MSYS2')},
   @{id='nushell';label='Nushell';mode='term';command='nu'},
@@ -163,9 +206,18 @@ $catalog=@(
   @{id='multicmd';label='Multi Commander';mode='explorer';uninstall=@('Multi Commander')}
 )
 $list=@()
+$psicon=(Get-IconB64 (Join-Path $sys 'System32\WindowsPowerShell\v1.0\powershell.exe'))
 foreach($a in $catalog){
   $exe=Resolve-App $a
-  if($exe){ $list += [ordered]@{id=$a.id;label=$a.label;exe=$exe;mode=$a.mode;icon=(Get-IconB64 $exe)} }
+  if($exe){
+    $exe=Resolve-RealExe $exe
+    $icon=''
+    if($a.id -eq 'winterm'){ $icon=$psicon }
+    elseif($exe -match '\.ps1$'){ $icon=(Get-LetterBadge $a.label) }
+    else { $icon=(Get-IconB64 $exe) }
+    if(-not $icon){ $icon=(Get-LetterBadge $a.label) }
+    $list += [ordered]@{id=$a.id;label=$a.label;exe=$exe;mode=$a.mode;icon=$icon}
+  }
 }
 $list += [ordered]@{id='powershell';label='PowerShell';exe=(Join-Path $sys 'System32\WindowsPowerShell\v1.0\powershell.exe');mode='shell';icon=(Get-IconB64 (Join-Path $sys 'System32\WindowsPowerShell\v1.0\powershell.exe'))}
 $list += [ordered]@{id='cmd';label='Command Prompt';exe=(Join-Path $sys 'System32\cmd.exe');mode='shell';icon=(Get-IconB64 (Join-Path $sys 'System32\cmd.exe'))}
