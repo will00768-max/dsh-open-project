@@ -72,19 +72,33 @@ PATH 命令与常见安装路径，且不返回图标，因此那些条目在浏
 
 ## 安装
 
-本包以 npm 包形式发布。本地构建与安装：
-
 ```sh
-# 在插件目录中
-npm install         # 或先发布
-npm run bundle      # 生成 dsh.client 下的浏览器 bundle
-
-# 添加到某个 profile（在部署根目录）
-dsh plugin --profile <name> add dsh-open-project
+# 从 GitHub 安装
+dsh plugin --profile web add github:will00768-max/dsh-open-project
 ```
 
-然后把上面的 `dsh-open-project` 行加到该 profile 的 `cordis.patch.yml`。你必须运行
-web profile，因为下拉框位于浏览器 shell 中。
+安装完成后重启 dsh web：
+
+```sh
+dsh web
+```
+
+然后刷新浏览器页面即可使用。
+
+如果你是从 DeepSeek Harness 源码运行：
+
+```sh
+pnpm dsh plugin --profile web add github:will00768-max/dsh-open-project
+pnpm dsh web
+```
+
+### 本地开发
+
+```sh
+dsh plugin --profile web add <path-to-this-checkout>
+```
+
+本地修改后重启 dsh web，以加载最新的插件代码。
 
 遵循 DSH 插件命名约定：仓库与 npm 包命名为 `dsh-open-project`（`dsh-<feature>`）。
 若你要发布到自己拥有的 npm scope，凭据与 `dsh.client` 扫描都按该精确的包 `name` 键控。
@@ -110,8 +124,9 @@ web profile，因为下拉框位于浏览器 shell 中。
 - **图标仅限 Windows 且为尽力而为。** 在 Windows 上图标来自真实可执行文件（经
   `System.Drawing`），来源是已安装应用的图标（32×32）。Windows Terminal 的 `wt.exe`
   App Execution Alias 没有可提取的产品 Logo，因此 Windows Terminal 条目复用 PowerShell
-  图标，以保持终端组在视觉上一致。在 Linux/macOS 以及 CLI 工具（OpenCode、Neovim…）上
-  没有宿主图标，因此那些条目在浏览器中退化为字母徽标。
+  图标，以保持终端组在视觉上一致。在 Windows 上，作为 `.ps1` shim 检测到的 CLI 工具
+  （OpenCode、Codex、Claude Code、Gemini CLI 等）使用 cmd.exe 的控制台图标；在
+  Linux/macOS 以及其它无宿主图标的条目上，浏览器退化为字母徽标。
 - **加载时重新检测。** 新安装的编辑器只在插件重新加载（或页面刷新后的下一次运行）后
   出现。目录较全但并非穷尽：要新增 Windows 启动器，在 `src/detect.ps1` 的 `$catalog`
   表里补充 id、label、mode 与探查来源；要新增 Unix 启动器，在 `src/index.js` 的

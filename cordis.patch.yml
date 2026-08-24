@@ -1,9 +1,9 @@
-# Mount the dsh-open-project plugin. Add this to your profile's cordis.patch.yml
-# (or the Web bundle used by the running deployment), then install the package:
+# Mount the dsh-open-project plugin by installing from GitHub with:
 #
-#   dsh plugin --profile <name> add dsh-open-project
+#   dsh plugin --profile web add github:will00768-max/dsh-open-project
 #
-# and add the row below:
+# (from the DeepSeek Harness source: pnpm dsh plugin --profile web add ...).
+# The row below is what gets inserted into the profile's cordis.patch.yml:
 #
 - insert:
     - id: open-with

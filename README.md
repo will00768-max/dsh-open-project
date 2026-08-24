@@ -86,20 +86,33 @@ UI package to be present (it owns the header slot) and the Host to provide the
 
 ## Install
 
-The package is published as an npm package. For a local build and install:
-
 ```sh
-# From the plugin directory
-npm install         # or publish it first
-npm run bundle      # produces the browser bundle under dsh.client
-
-# Add it to a profile (from the deployment root)
-dsh plugin --profile <name> add dsh-open-project
+# Install from GitHub
+dsh plugin --profile web add github:will00768-max/dsh-open-project
 ```
 
-Then add the `dsh-open-project` row above to that profile's `cordis.patch.yml`.
-The web profile must be the one you run, because the dropdown lives in the
-browser shell.
+After installing, restart dsh web:
+
+```sh
+dsh web
+```
+
+Then refresh the browser page to use it.
+
+If you run from the DeepSeek Harness source:
+
+```sh
+pnpm dsh plugin --profile web add github:will00768-max/dsh-open-project
+pnpm dsh web
+```
+
+### Local development
+
+```sh
+dsh plugin --profile web add <path-to-this-checkout>
+```
+
+After a local change, restart dsh web to load the latest plugin code.
 
 Follow the DSH plugin naming convention: the repository and npm package are named
 `dsh-open-project` (`dsh-<feature>`). If you publish under your own npm scope,
@@ -128,9 +141,10 @@ None. It does not change the derived request prefix.
   real executable via `System.Drawing` (the installed app's icon, 32×32); the
   Windows Terminal `wt.exe` App Execution Alias has no extractable product logo,
   so the Windows Terminal entry reuses the PowerShell icon to keep the terminal
-  group visually consistent. On Linux/macOS and for CLI tools (OpenCode, Neovim,
-  …) there is no host icon, so those entries fall back to a letter badge in the
-  browser.
+  group visually consistent. On Windows, CLI tools detected as `.ps1` shims
+  (OpenCode, Codex, Claude Code, Gemini CLI, …) use the cmd.exe console icon; on
+  Linux/macOS and for other entries with no host icon, the browser falls back to a
+  letter badge.
 - **Detection re-runs on load.** A newly installed editor appears only after the
   plugin reloads (or the next plugin run after a page refresh). The catalog is
   broad but not exhaustive: to add a Windows launcher, extend the `$catalog`
