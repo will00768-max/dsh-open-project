@@ -236,7 +236,7 @@ foreach($a in $catalog){
     $exe=Resolve-RealExe $exe
     $icon=''
     if($a.id -eq 'winterm'){ $icon=$psicon }
-    elseif($exe -match '\.ps1$'){ $icon=(Get-LetterBadge $a.label) }
+    elseif($exe -match '\.ps1$'){ $icon=(Get-IconB64 (Join-Path $sys 'System32\cmd.exe')) }
     else { $icon=(Get-IconB64 $exe) }
     if(-not $icon){ $icon=(Get-LetterBadge $a.label) }
     $list += [ordered]@{id=$a.id;label=$a.label;exe=$exe;mode=$a.mode;icon=$icon}
