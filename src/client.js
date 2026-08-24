@@ -1,26 +1,38 @@
-// Browser half of the dsh-open-project plugin.
-//
-// Contributes one "open with" utility to the right edge of the session header
-// (the session-scoped `conversation.session.header.utilities` list). The control
-// is a split trigger: the icon shows the app that would open the project (the
-// last one used, or the first detected one by default) and clicking it launches
-// that app immediately; the caret beside it opens a dropdown of every detected
-// editor/IDE/terminal with its product icon (a letter badge when a CLI tool has
-// no extractable icon). Choosing one launches it with the current project folder
-// (the session's cwd) and remembers the choice, so the icon switches to that
-// app. Only apps actually installed on the host are listed — detection is
-// dynamic.
+/*
+ * Browser half for dsh-open-project.
+ *
+ * A standalone plugin's client half must ship as a self-registering module that
+ * DSH's client module loader consumes through window.__ModuleLoader__.load().
+ * We build React elements with React.createElement (no JSX) and reach the host
+ * over the public Connection service: context.connection.rpc.call(channel,
+ * endpoint, payload). The host half registers the matching channel with
+ * ctx.get('connection').rpc.handle(channel, handler). This avoids relying on
+ * the dynamic-plugin-only host/harness globals, which are not present when DSH
+ * loads a plugin straight out of npm.
+ *
+ * The control is a split trigger at the right edge of the session header: the
+ * icon opens the project with the app that would be used (the last one chosen,
+ * or the first detected app), and the caret beside it opens a dropdown of every
+ * detected editor/IDE/terminal with its product icon (a letter badge when an
+ * entry has no extractable icon, e.g. CLI tools on Linux/macOS). Choosing one
+ * launches it with the current project folder (the session's cwd) and remembers
+ * the choice. Only apps actually installed on the host are listed — detection is
+ * dynamic.
+ */
 
-const LS_KEY = 'dsh.open-project.last'
+globalThis.__ModuleLoader__.load({
+  id: 'dsh-open-project',
+  factory(require) {
+    'use strict'
+    const React = require('react')
+    const { useState, useCallback, useEffect } = React
 
-function readLast() {
-  try { return typeof localStorage !== 'undefined' ? localStorage.getItem(LS_KEY) : null } catch { return null }
-}
-function writeLast(id) {
-  try { if (typeof localStorage !== 'undefined') localStorage.setItem(LS_KEY, id) } catch { /* ignore */ }
-}
+    const LS_KEY = 'dsh.open-project.last'
+    const SLOT = 'conversation.session.header.utilities'
+    const ID = 'open-with'
+    const CHANNEL = '/dsh-open-project'
 
-const css = `
+    const css = `
 .dsw-openwith-root{position:relative;display:inline-flex;align-items:center}
 .dsw-openwith-trigger{display:inline-flex;align-items:stretch;overflow:hidden;height:28px;border:1px solid var(--dsw-alias-border-l1);border-radius:8px;background:transparent;color:var(--dsw-alias-label-secondary)}
 .dsw-openwith-trigger:hover{border-color:var(--dsw-alias-border-l2)}
@@ -44,120 +56,138 @@ const css = `
 .dsw-openwith-empty{padding:12px 10px;font-size:12px;color:var(--dsw-alias-label-secondary)}
 `
 
-function AppIcon(props) {
-  if (props.src) return React.createElement('img', { className: props.className, src: props.src, alt: props.label || '' })
-  return React.createElement('span', { className: props.className + ' dsw-openwith-fallback' }, (props.label || '?').charAt(0).toUpperCase())
-}
+    function readLast() {
+      try { return typeof localStorage !== 'undefined' ? localStorage.getItem(LS_KEY) : null } catch { return null }
+    }
+    function writeLast(id) {
+      try { if (typeof localStorage !== 'undefined') localStorage.setItem(LS_KEY, id) } catch { /* ignore */ }
+    }
 
-function OpenWithMenu(props) {
-  const { sessionId, useSessions } = props
-  const [open, setOpen] = React.useState(false)
-  const [apps, setApps] = React.useState(null)
-  const [loading, setLoading] = React.useState(true)
-  const [activeId, setActiveId] = React.useState(null)
-  const cwd = useSessions((s) => sessionId ? s.byId[sessionId]?.cwd : undefined)
+    function AppIcon(props) {
+      if (props.src) return React.createElement('img', { className: props.className, src: props.src, alt: props.label || '' })
+      return React.createElement('span', { className: props.className + ' dsw-openwith-fallback' }, (props.label || '?').charAt(0).toUpperCase())
+    }
 
-  const fetchApps = React.useCallback(() => {
-    if (!cwd) { setApps([]); setLoading(false); return }
-    host.call('list-apps', { path: cwd }).then((res) => {
-      const list = Array.isArray(res) ? res : []
-      setApps(list)
-      setLoading(false)
-      const last = readLast()
-      const found = list.find((a) => a.id === last)
-      setActiveId(found ? found.id : (list[0] ? list[0].id : null))
-    }).catch(() => { setApps([]); setLoading(false) })
-  }, [cwd])
+    function OpenWithMenu(props) {
+      const { sessionId, useSessions, listApps, openWith } = props
+      const [open, setOpen] = useState(false)
+      const [apps, setApps] = useState(null)
+      const [loading, setLoading] = useState(true)
+      const [activeId, setActiveId] = useState(null)
+      const cwd = useSessions((s) => sessionId ? s.byId[sessionId]?.cwd : undefined)
 
-  React.useEffect(() => {
-    setLoading(true)
-    fetchApps()
-  }, [fetchApps])
+      const fetchApps = useCallback(() => {
+        if (!cwd) { setApps([]); setLoading(false); return }
+        listApps(cwd).then((res) => {
+          const list = Array.isArray(res) ? res : []
+          setApps(list)
+          setLoading(false)
+          const last = readLast()
+          const found = list.find((a) => a.id === last)
+          setActiveId(found ? found.id : (list[0] ? list[0].id : null))
+        }).catch(() => { setApps([]); setLoading(false) })
+      }, [cwd, listApps])
 
-  // Re-fetch whenever the dropdown opens (cheap: the host caches its detection
-  // result, so this stays fresh without re-running detection each time).
-  React.useEffect(() => {
-    if (open) fetchApps()
-  }, [open, fetchApps])
+      useEffect(() => { setLoading(true); fetchApps() }, [fetchApps])
 
-  if (!cwd) return null
+      // Re-fetch whenever the dropdown opens (cheap: the host caches its detection
+      // result, so this stays fresh without re-running detection each time).
+      useEffect(() => { if (open) fetchApps() }, [open, fetchApps])
 
-  const active = (apps || []).find((a) => a.id === activeId) || null
-  const openWith = (app) => {
-    host.call('open-with', { appId: app.id, path: cwd })
-    setActiveId(app.id)
-    writeLast(app.id)
-    setOpen(false)
-  }
+      if (!cwd) return null
 
-  const triggerIcon = active
-    ? React.createElement(AppIcon, { className: 'dsw-openwith-triggerimg', src: active.icon, label: active.label })
-    : React.createElement('span', { className: 'dsw-openwith-triggerimg' }, '')
-  const caret = React.createElement('svg', {
-    width: 12,
-    height: 12,
-    viewBox: '0 0 16 16',
-    fill: 'none',
-    className: 'dsw-openwith-caret',
-    'aria-hidden': true,
-  }, React.createElement('path', {
-    d: 'M4 6l4 4 4-4',
-    stroke: 'currentColor',
-    strokeWidth: 1.7,
-    strokeLinecap: 'round',
-    strokeLinejoin: 'round',
-  }))
-  const openActive = () => { if (active) openWith(active) }
-  const mainBtn = React.createElement('button', {
-    className: 'dsw-openwith-main',
-    title: active ? 'Open with ' + active.label : 'Open with',
-    'aria-label': active ? 'Open with ' + active.label : 'Open with',
-    onClick: openActive,
-  }, triggerIcon)
-  const caretBtn = React.createElement('button', {
-    className: 'dsw-openwith-caretbtn',
-    title: 'Choose an app',
-    'aria-label': 'Choose an app',
-    onClick: () => setOpen((v) => !v),
-  }, caret)
-  const trigger = React.createElement('div', { className: 'dsw-openwith-trigger' }, mainBtn, caretBtn)
+      const active = (apps || []).find((a) => a.id === activeId) || null
+      const launch = (app) => {
+        openWith(app.id, cwd)
+        setActiveId(app.id)
+        writeLast(app.id)
+        setOpen(false)
+      }
 
-  if (!open) return React.createElement('div', { className: 'dsw-openwith-root' }, trigger)
+      const triggerIcon = active
+        ? React.createElement(AppIcon, { className: 'dsw-openwith-triggerimg', src: active.icon, label: active.label })
+        : React.createElement('span', { className: 'dsw-openwith-triggerimg' }, '')
+      const caret = React.createElement('svg', {
+        width: 12,
+        height: 12,
+        viewBox: '0 0 16 16',
+        fill: 'none',
+        className: 'dsw-openwith-caret',
+        'aria-hidden': true,
+      }, React.createElement('path', {
+        d: 'M4 6l4 4 4-4',
+        stroke: 'currentColor',
+        strokeWidth: 1.7,
+        strokeLinecap: 'round',
+        strokeLinejoin: 'round',
+      }))
+      const openActive = () => { if (active) launch(active) }
+      const mainBtn = React.createElement('button', {
+        className: 'dsw-openwith-main',
+        title: active ? 'Open with ' + active.label : 'Open with',
+        'aria-label': active ? 'Open with ' + active.label : 'Open with',
+        onClick: openActive,
+      }, triggerIcon)
+      const caretBtn = React.createElement('button', {
+        className: 'dsw-openwith-caretbtn',
+        title: 'Choose an app',
+        'aria-label': 'Choose an app',
+        onClick: () => setOpen((v) => !v),
+      }, caret)
+      const trigger = React.createElement('div', { className: 'dsw-openwith-trigger' }, mainBtn, caretBtn)
 
-  const items = loading
-    ? React.createElement('div', { className: 'dsw-openwith-empty' }, 'Detecting installed apps…')
-    : (apps.length === 0
-        ? React.createElement('div', { className: 'dsw-openwith-empty' }, 'No compatible app detected')
-        : React.createElement('div', { className: 'dsw-openwith-list' },
-            apps.map((app) => {
-              const isActive = app.id === activeId
-              return React.createElement('button', {
-                key: app.id,
-                className: 'dsw-openwith-item' + (isActive ? ' dsw-openwith-item-active' : ''),
-                onClick: () => openWith(app),
-              },
-                React.createElement(AppIcon, { className: 'dsw-openwith-iconimg', src: app.icon, label: app.label }),
-                React.createElement('span', { className: 'dsw-openwith-label' }, app.label),
-                isActive ? React.createElement('span', { className: 'dsw-openwith-check' }, '\u2713') : null,
-              )
-            })))
+      if (!open) return React.createElement('div', { className: 'dsw-openwith-root' }, trigger)
 
-  return React.createElement('div', { className: 'dsw-openwith-root' },
-    trigger,
-    React.createElement('div', { className: 'dsw-openwith-backdrop', onClick: () => setOpen(false) }),
-    React.createElement('div', { className: 'dsw-openwith-popover' }, items),
-  )
-}
+      const items = loading
+        ? React.createElement('div', { className: 'dsw-openwith-empty' }, 'Detecting installed apps…')
+        : (apps.length === 0
+            ? React.createElement('div', { className: 'dsw-openwith-empty' }, 'No compatible app detected')
+            : React.createElement('div', { className: 'dsw-openwith-list' },
+                apps.map((app) => {
+                  const isActive = app.id === activeId
+                  return React.createElement('button', {
+                    key: app.id,
+                    className: 'dsw-openwith-item' + (isActive ? ' dsw-openwith-item-active' : ''),
+                    onClick: () => launch(app),
+                  },
+                    React.createElement(AppIcon, { className: 'dsw-openwith-iconimg', src: app.icon, label: app.label }),
+                    React.createElement('span', { className: 'dsw-openwith-label' }, app.label),
+                    isActive ? React.createElement('span', { className: 'dsw-openwith-check' }, '\u2713') : null,
+                  )
+                })))
 
-export const inject = ['slots']
-export function apply(ctx) {
-  const slots = ctx.get('slots')
-  if (slots === undefined) return
-  ctx.effect(() => styles.insert(css))
-  slots.inject('conversation.session.header.utilities', () => slots.register({
-    name: 'conversation.session.header.utilities',
-    id: 'open-with',
-    order: 100,
-    label: 'Open with',
-  }, OpenWithMenu))
-}
+      return React.createElement('div', { className: 'dsw-openwith-root' },
+        trigger,
+        React.createElement('div', { className: 'dsw-openwith-backdrop', onClick: () => setOpen(false) }),
+        React.createElement('div', { className: 'dsw-openwith-popover' }, items),
+      )
+    }
+
+    return {
+      inject: ['slots', 'connection'],
+      apply(ctx) {
+        const slots = ctx.get('slots')
+        if (slots === undefined) return
+        const styleEl = globalThis.document.createElement('style')
+        styleEl.textContent = css
+        ctx.effect(() => {
+          if (globalThis.document.head) {
+            globalThis.document.head.appendChild(styleEl)
+            return () => { if (styleEl.parentNode) styleEl.parentNode.removeChild(styleEl) }
+          }
+          return undefined
+        }, 'dsh-open-project: styles')
+        // Resolve connection lazily so the handlers survive a reconnect/remount.
+        const listApps = (path) => { const c = ctx.get('connection'); return c === undefined ? Promise.resolve([]) : c.rpc.call(CHANNEL, 'list-apps', { path }) }
+        const openWith = (appId, path) => { const c = ctx.get('connection'); return c === undefined ? Promise.resolve({ ok: false, error: 'no connection' }) : c.rpc.call(CHANNEL, 'open-with', { appId, path }) }
+        const injectProps = () => ({ listApps, openWith })
+        slots.inject(SLOT, () => slots.register({
+          name: SLOT,
+          id: ID,
+          order: 100,
+          inject: injectProps,
+        }, OpenWithMenu))
+      },
+    }
+  },
+})

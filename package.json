@@ -32,12 +32,6 @@
     "datagrip",
     "terminal"
   ],
-  "peerDependencies": {
-    "@deepseek-ai/cordis": "^4.0.1",
-    "@deepseek-ai/dsh-client-runtime": "^0.1.1-rc.2",
-    "@deepseek-ai/dsh-client-ui-conversation": "^0.1.1-rc.2",
-    "@deepseek-ai/dsh-subprocess": "^0.1.1-rc.2"
-  },
   "dsh": {
     "bundle": {
       "patch": "./cordis.patch.yml"
@@ -52,7 +46,6 @@
     }
   },
   "scripts": {
-    "bundle": "tsdown",
-    "watch": "tsdown --watch"
+    "test": "node --check src/index.js && node --check src/client.js"
   }
 }

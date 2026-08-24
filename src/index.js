@@ -5,8 +5,9 @@
 // launches the chosen one with the current project folder. The browser half
 // calls back into two package-private RPC methods:
 //
-//   harness.handle('list-apps')  -> [{ id, label, exe, mode, icon }, ...]
-//   harness.handle('open-with')  -> { ok, error? }   (args: { appId, path })
+//   connection.rpc.handle('/dsh-open-project', ...)  -> endpoints:
+//     'list-apps'  -> [{ id, label, exe, mode, icon }, ...]   (payload: { path })
+//     'open-with'  -> { ok, error? }                         (payload: { appId, path })
 //
 // Detection is fully dynamic and platform-aware. On Windows it runs a
 // PowerShell script (DETECT_SCRIPT, shipped as src/detect.ps1) that probes the
@@ -18,10 +19,9 @@
 // (folder argument), 'term' (CLI tool in a terminal), 'shell', 'terminal', or
 // 'explorer'. cmd/powershell/explorer are always present on Windows.
 
-export const name = 'dsh-open-project'
-export const inject = []
+export const inject = ['subprocess', 'connection']
 
-export const DETECT_SCRIPT = String.raw`$ErrorActionPreference='SilentlyContinue'
+const DETECT_SCRIPT = String.raw`$ErrorActionPreference='SilentlyContinue'
 Add-Type -AssemblyName System.Drawing
 $pf=$env:ProgramFiles; $pf86=[Environment]::GetEnvironmentVariable('ProgramFiles(x86)'); $la=$env:LOCALAPPDATA; $sys=$env:SystemRoot
 function Get-IconB64($exe){
@@ -377,6 +377,7 @@ function buildArgv(app, path, plat, detected) {
 
 export function apply(ctx) {
   const subprocess = ctx.get('subprocess')
+  const connection = ctx.get('connection')
   let detected = null
   let platform = null
 
@@ -424,31 +425,36 @@ export function apply(ctx) {
     return detectUnix()
   }
 
-  harness.handle('list-apps', async (args) => {
-    const path = args && args.path
-    // Detection is expensive (~2s); cache the result so repeated dropdown opens
-    // return instantly. The client re-fetches on open, which stays fresh because
-    // the cache is reset whenever the plugin is re-applied (detected = null).
-    if (!detected) detected = await detect(path)
-    return detected
-  })
-  harness.handle('open-with', async (args) => {
-    const appId = args && args.appId
-    const path = args && args.path
-    if (!appId || !path) return { ok: false, error: 'missing appId or path' }
-    try {
+  if (!connection || !connection.rpc) return
+  connection.rpc.handle('/dsh-open-project', async (endpoint, payload) => {
+    if (endpoint === 'list-apps') {
+      const path = payload && payload.path
+      // Detection is expensive (~2s); cache the result so repeated dropdown opens
+      // return instantly. The client re-fetches on open, which stays fresh because
+      // the cache is reset whenever the plugin is re-applied (detected = null).
       if (!detected) detected = await detect(path)
-      const plat = await detectPlatform()
-      const app = (detected || []).find((a) => a.id === appId)
-      if (!app) return { ok: false, error: 'app not detected: ' + appId }
-      if (subprocess === undefined) return { ok: false, error: 'subprocess unavailable' }
-      subprocess.spawn({
-        argv: buildArgv(app, path, plat, detected),
-        cwd: path,
-        stdio: { stdin: 'ignore', stdout: 'ignore', stderr: 'ignore' },
-        graceMs: 15000,
-      })
-      return { ok: true }
-    } catch (e) { console.error('open-with error', e); return { ok: false, error: String((e && e.message) || e) } }
+      return detected
+    }
+    if (endpoint === 'open-with') {
+      const appId = payload && payload.appId
+      const path = payload && payload.path
+      if (!appId || !path) return { ok: false, error: 'missing appId or path' }
+      try {
+        if (!detected) detected = await detect(path)
+        const plat = await detectPlatform()
+        const app = (detected || []).find((a) => a.id === appId)
+        if (!app) return { ok: false, error: 'app not detected: ' + appId }
+        if (subprocess === undefined) return { ok: false, error: 'subprocess unavailable' }
+        const spawnHandle = subprocess.spawn({
+          argv: buildArgv(app, path, plat, detected),
+          cwd: path,
+          stdio: { stdin: 'ignore', stdout: 'ignore', stderr: 'ignore' },
+          graceMs: 15000,
+        })
+        if (spawnHandle && spawnHandle.done) spawnHandle.done.catch((e) => console.error('open-with spawn error', e))
+        return { ok: true }
+      } catch (e) { console.error('open-with error', e); return { ok: false, error: String((e && e.message) || e) } }
+    }
+    throw new Error('unknown endpoint ' + endpoint)
   })
 }
