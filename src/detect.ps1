@@ -129,7 +129,6 @@ $catalog=@(
 
   # --- Terminal emulators ---
   @{id='winterm';label='Windows Terminal';mode='terminal';command='wt'},
-  @{id='wtpreview';label='Windows Terminal Preview';mode='terminal';command='wt';uninstall=@('Windows Terminal Preview')},
   @{id='pwsh';label='PowerShell 7';mode='shell';command='pwsh'},
   @{id='alacritty';label='Alacritty';mode='term';command='alacritty';uninstall=@('Alacritty')},
   @{id='wezterm';label='WezTerm';mode='term';command='wezterm-gui';uninstall=@('WezTerm')},
