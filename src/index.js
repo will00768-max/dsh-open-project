@@ -414,7 +414,10 @@ export function apply(ctx) {
 
   harness.handle('list-apps', async (args) => {
     const path = args && args.path
-    detected = await detect(path)
+    // Detection is expensive (~2s); cache the result so repeated dropdown opens
+    // return instantly. The client re-fetches on open, which stays fresh because
+    // the cache is reset whenever the plugin is re-applied (detected = null).
+    if (!detected) detected = await detect(path)
     return detected
   })
   harness.handle('open-with', async (args) => {

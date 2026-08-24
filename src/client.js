@@ -57,20 +57,28 @@ function OpenWithMenu(props) {
   const [activeId, setActiveId] = React.useState(null)
   const cwd = useSessions((s) => sessionId ? s.byId[sessionId]?.cwd : undefined)
 
-  React.useEffect(() => {
+  const fetchApps = React.useCallback(() => {
     if (!cwd) { setApps([]); setLoading(false); return }
-    let cancelled = false
     host.call('list-apps', { path: cwd }).then((res) => {
-      if (cancelled) return
       const list = Array.isArray(res) ? res : []
       setApps(list)
       setLoading(false)
       const last = readLast()
       const found = list.find((a) => a.id === last)
       setActiveId(found ? found.id : (list[0] ? list[0].id : null))
-    }).catch(() => { if (!cancelled) { setApps([]); setLoading(false) } })
-    return () => { cancelled = true }
+    }).catch(() => { setApps([]); setLoading(false) })
   }, [cwd])
+
+  React.useEffect(() => {
+    setLoading(true)
+    fetchApps()
+  }, [fetchApps])
+
+  // Re-fetch whenever the dropdown opens (cheap: the host caches its detection
+  // result, so this stays fresh without re-running detection each time).
+  React.useEffect(() => {
+    if (open) fetchApps()
+  }, [open, fetchApps])
 
   if (!cwd) return null
 
