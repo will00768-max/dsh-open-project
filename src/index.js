@@ -387,10 +387,11 @@ export function apply(ctx) {
   }
   const detectPlatform = async () => {
     if (platform) return platform
-    if (subprocess === undefined) { platform = 'win'; return platform }
-    try { await subprocess.resolveExecutable('cmd.exe'); platform = 'win'; return platform } catch {}
-    try { await subprocess.resolveExecutable('open'); platform = 'mac'; return platform } catch {}
+    if (subprocess === undefined) { platform = 'win'; console.error('[open-with] subprocess service unavailable; mis-detecting as win'); return platform }
+    try { await subprocess.resolveExecutable('cmd.exe'); platform = 'win'; console.log('[open-with] platform=win'); return platform } catch {}
+    try { await subprocess.resolveExecutable('open'); platform = 'mac'; console.log('[open-with] platform=mac'); return platform } catch {}
     platform = 'linux'
+    console.log('[open-with] platform=linux')
     return platform
   }
   const detectUnix = async () => {
@@ -401,6 +402,7 @@ export function apply(ctx) {
       if (!exe) for (const p of (a.paths || [])) { exe = await resolveCmd(p); if (exe) break }
       if (exe) out.push({ id: a.id, label: a.label, exe: exe, mode: a.mode, icon: '' })
     }
+    console.log('[open-with] detected ' + out.length + ' unix app(s): ' + out.map((a) => a.id).join(','))
     return out
   }
   const detectWin = async (cwd) => {
@@ -426,6 +428,8 @@ export function apply(ctx) {
   }
 
   if (!connection || !connection.rpc) return
+  // authority: 'loopback' — this RPC channel only serves the local loopback,
+  // which matches the "open a local editor/terminal" semantic of this plugin.
   connection.rpc.handle('/dsh-open-project', async (endpoint, payload) => {
     if (endpoint === 'list-apps') {
       const path = payload && payload.path
@@ -433,7 +437,10 @@ export function apply(ctx) {
       // return instantly. The client re-fetches on open, which stays fresh because
       // the cache is reset whenever the plugin is re-applied (detected = null).
       if (!detected) detected = await detect(path)
-      return detected
+      return {
+        apps: detected,
+        debug: { platform: await detectPlatform(), subprocess: subprocess !== undefined },
+      }
     }
     if (endpoint === 'open-with') {
       const appId = payload && payload.appId
@@ -456,5 +463,5 @@ export function apply(ctx) {
       } catch (e) { console.error('open-with error', e); return { ok: false, error: String((e && e.message) || e) } }
     }
     throw new Error('unknown endpoint ' + endpoint)
-  })
+  }, { authority: 'loopback' })
 }

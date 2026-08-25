@@ -74,18 +74,21 @@ globalThis.__ModuleLoader__.load({
       const [apps, setApps] = useState(null)
       const [loading, setLoading] = useState(true)
       const [activeId, setActiveId] = useState(null)
+      const [debug, setDebug] = useState(null)
       const cwd = useSessions((s) => sessionId ? s.byId[sessionId]?.cwd : undefined)
 
       const fetchApps = useCallback(() => {
         if (!cwd) { setApps([]); setLoading(false); return }
         listApps(cwd).then((res) => {
-          const list = Array.isArray(res) ? res : []
+          const payload = res && !Array.isArray(res) ? res : { apps: Array.isArray(res) ? res : [] }
+          const list = Array.isArray(payload.apps) ? payload.apps : []
           setApps(list)
           setLoading(false)
+          setDebug(payload.debug || null)
           const last = readLast()
           const found = list.find((a) => a.id === last)
           setActiveId(found ? found.id : (list[0] ? list[0].id : null))
-        }).catch(() => { setApps([]); setLoading(false) })
+        }).catch(() => { setApps([]); setLoading(false); setDebug(null) })
       }, [cwd, listApps])
 
       useEffect(() => { setLoading(true); fetchApps() }, [fetchApps])
@@ -141,7 +144,8 @@ globalThis.__ModuleLoader__.load({
       const items = loading
         ? React.createElement('div', { className: 'dsw-openwith-empty' }, 'Detecting installed apps…')
         : (apps.length === 0
-            ? React.createElement('div', { className: 'dsw-openwith-empty' }, 'No compatible app detected')
+            ? React.createElement('div', { className: 'dsw-openwith-empty' },
+                debug ? 'No compatible app detected (' + debug.platform + (debug.subprocess ? '' : ', subprocess unavailable') + ')' : 'No compatible app detected')
             : React.createElement('div', { className: 'dsw-openwith-list' },
                 apps.map((app) => {
                   const isActive = app.id === activeId
