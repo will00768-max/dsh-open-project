@@ -62,9 +62,10 @@ globalThis.__ModuleLoader__.load({
 .dsw-openwith-label{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .dsw-openwith-check{color:var(--dsw-alias-state-success-primary);font-size:14px;line-height:1;flex:none}
 .dsw-openwith-empty{padding:12px 10px;font-size:12px;color:var(--dsw-alias-label-secondary)}
-.dsw-openwith-row{display:flex;align-items:center;gap:10px;width:100%;padding:8px 10px;border:0;background:transparent;color:var(--dsw-alias-label-primary);font-family:var(--dsw-font-family);font-size:13px;text-align:left;cursor:pointer;border-radius:8px}
+.dsw-openwith-row{display:flex;align-items:center;gap:8px;width:100%;min-height:40px;padding:8px 10px;border:0;border-radius:10px;background:transparent;color:var(--dsw-alias-label-primary);font-family:var(--dsw-font-family);font-size:14px;line-height:22px;text-align:left;cursor:pointer}
 .dsw-openwith-row:hover{background:var(--dsw-alias-interactive-bg-hover)}
-.dsw-openwith-foldericon{width:16px;height:16px;display:inline-flex;align-items:center;justify-content:center;flex:none;color:var(--dsw-alias-label-secondary);font-size:14px;line-height:1}
+.dsw-openwith-row:focus-visible{outline:2px solid var(--dsw-alias-brand-primary);outline-offset:-2px}
+.dsw-openwith-foldericon{width:16px;height:16px;display:inline-flex;align-items:center;justify-content:center;flex:none;color:var(--dsw-alias-label-tertiary);font-size:14px;line-height:1}
 `
 
     function readLast() {
@@ -239,8 +240,24 @@ globalThis.__ModuleLoader__.load({
         const mount = globalThis.document.createElement('div')
         mount.setAttribute('role', 'presentation')
         mount.setAttribute(ROOT_ATTR, '')
+        // Keep the portaled menu open while the pointer is over our row: the
+        // Menu uses closeOnPointerLeave, and our nested React root otherwise
+        // looks like leaving the trigger+list synthetic tree, closing after a
+        // short delay. Re-dispatch pointerover on the anchor to cancel it.
+        const keepOpen = () => {
+          if (active !== undefined && active.anchor) active.anchor.dispatchEvent(new MouseEvent('pointerover', { bubbles: true }))
+        }
+        mount.addEventListener('pointerover', keepOpen)
         const viewport = menu.querySelector(':scope > [role="presentation"]') ?? menu
-        viewport.appendChild(mount)
+        // Insert between "Rename" and "Delete workspace" (the middle), matching
+        // the owner's order; fall back to appending if the delete row is gone.
+        const deleteLabel = workspaceT('delete.workspace')
+        const deleteNode = Array.from(viewport.querySelectorAll('[role="menuitem"]')).find((el) => {
+          const txt = (el.textContent || '').trim()
+          return txt === deleteLabel || /delete\s+workspace/i.test(txt) || /删除工作区/.test(txt)
+        })
+        if (deleteNode && deleteNode.parentNode) deleteNode.parentNode.insertBefore(mount, deleteNode)
+        else viewport.appendChild(mount)
         menu.setAttribute(ROOT_ATTR, '')
         const root = createRoot(mount)
         active.menu = menu; active.mount = mount; active.root = root
