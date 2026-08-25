@@ -376,20 +376,27 @@ function buildArgv(app, path, plat, detected) {
 }
 
 export function apply(ctx) {
-  const subprocess = ctx.get('subprocess')
+  // Resolve subprocess lazily: in the standalone profile it may not be mounted
+  // yet when apply() runs, so capturing it once here would pin it to undefined
+  // and every later detection call would return an empty list. Reading it on
+  // demand inside the handlers (and when a handler is invoked) reflects the
+  // final composition order.
+  const getSub = () => ctx.get('subprocess')
   const connection = ctx.get('connection')
   let detected = null
   let platform = null
 
   const resolveCmd = async (c) => {
-    if (subprocess === undefined) return ''
-    try { return await subprocess.resolveExecutable(c) } catch { return '' }
+    const sub = getSub()
+    if (sub === undefined) return ''
+    try { return await sub.resolveExecutable(c) } catch { return '' }
   }
   const detectPlatform = async () => {
     if (platform) return platform
-    if (subprocess === undefined) { platform = 'win'; console.error('[open-with] subprocess service unavailable; mis-detecting as win'); return platform }
-    try { await subprocess.resolveExecutable('cmd.exe'); platform = 'win'; console.log('[open-with] platform=win'); return platform } catch {}
-    try { await subprocess.resolveExecutable('open'); platform = 'mac'; console.log('[open-with] platform=mac'); return platform } catch {}
+    const sub = getSub()
+    if (sub === undefined) { platform = 'win'; console.error('[open-with] subprocess service unavailable; mis-detecting as win'); return platform }
+    try { await sub.resolveExecutable('cmd.exe'); platform = 'win'; console.log('[open-with] platform=win'); return platform } catch {}
+    try { await sub.resolveExecutable('open'); platform = 'mac'; console.log('[open-with] platform=mac'); return platform } catch {}
     platform = 'linux'
     console.log('[open-with] platform=linux')
     return platform
@@ -406,9 +413,10 @@ export function apply(ctx) {
     return out
   }
   const detectWin = async (cwd) => {
-    if (subprocess === undefined) return []
+    const sub = getSub()
+    if (sub === undefined) return []
     try {
-      const handle = subprocess.spawn({
+      const handle = sub.spawn({
         argv: ['powershell.exe', '-NoProfile', '-NonInteractive', '-Command', DETECT_SCRIPT],
         cwd: cwd || 'C:\\',
         stdio: { stdin: 'ignore', stdout: { maxBytes: 1048576 }, stderr: { maxBytes: 8192 } },
@@ -439,7 +447,7 @@ export function apply(ctx) {
       if (!detected) detected = await detect(path)
       return {
         apps: detected,
-        debug: { platform: await detectPlatform(), subprocess: subprocess !== undefined },
+        debug: { platform: await detectPlatform(), subprocess: getSub() !== undefined },
       }
     }
     if (endpoint === 'open-with') {
@@ -451,8 +459,9 @@ export function apply(ctx) {
         const plat = await detectPlatform()
         const app = (detected || []).find((a) => a.id === appId)
         if (!app) return { ok: false, error: 'app not detected: ' + appId }
-        if (subprocess === undefined) return { ok: false, error: 'subprocess unavailable' }
-        const spawnHandle = subprocess.spawn({
+        const sub = getSub()
+        if (sub === undefined) return { ok: false, error: 'subprocess unavailable' }
+        const spawnHandle = sub.spawn({
           argv: buildArgv(app, path, plat, detected),
           cwd: path,
           stdio: { stdin: 'ignore', stdout: 'ignore', stderr: 'ignore' },
