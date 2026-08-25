@@ -3,9 +3,11 @@
 English | [中文](README.zh.md)
 
 Open the current project folder with an editor, IDE, or terminal from the
-top-right of the session header. The plugin adds one small dropdown utility to
-the session-scoped `conversation.session.header.utilities` list. It scans the
-host for code editors, IDEs, terminals, and file managers that are actually
+top-right of the session header — or open a workspace's folder from the left
+sidebar's Workspace "…" menu. The plugin adds a small split dropdown to the
+session-scoped `conversation.session.header.utilities` list and an **“Open
+project folder”** row to the Workspace overflow menu. For the dropdown it scans
+the host for code editors, IDEs, terminals, and file managers that are actually
 installed — from a **broad catalog** (VS Code, VSCodium, Cursor, Trae, Trae
 Work, Zed, Windsurf, Sublime Text, Notepad++, the JetBrains family, Eclipse,
 NetBeans, Qt Creator, OpenCode, Codex, Claude Code, Aider, Gemini CLI, Neovim,
@@ -26,8 +28,9 @@ letter badge.
 
 The Host half is responsible for detection, icon extraction, and process launch.
 The browser half owns the dropdown, its interaction state (open/closed, loaded
-apps), the selected app, and the style sheet. They talk over the package-private
-Client→Host RPC: `list-apps` and `open-with`.
+apps), the selected app, the Workspace menu row, and the style sheet. They talk
+over the package-private Client→Host RPC: `list-apps`, `open-with`, and
+`open-workspace-folder`.
 
 ## Preview
 
@@ -36,6 +39,16 @@ Client→Host RPC: `list-apps` and `open-with`.
 The dropdown lists each editor, IDE, terminal, and file manager detected on the
 host. Choosing one launches it with the current project folder; the check mark
 marks the app the trigger icon opens on a plain click.
+
+The plugin also adds an **“Open project folder”** row to the left sidebar's
+Workspace "…" overflow menu, inserted between *Rename* and *Delete workspace*
+with a DSH outline folder icon:
+
+![Workspace overflow menu with the Open project folder row](docs/images/workspace-menu.png)
+
+That row matches the native rows — same height, same icon style, hover keeps the
+menu open — and follows DSH's current language (中文 / English). Clicking it
+opens the workspace's folder in the OS file manager.
 
 ## Behavior contract
 

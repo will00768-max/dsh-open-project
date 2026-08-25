@@ -2,15 +2,17 @@
 
 [English](README.md) | 中文
 
-在会话页头右上角用一个编辑器、IDE、终端或文件管理器打开当前项目文件夹。插件往会话作用域的
-`conversation.session.header.utilities` 列表贡献一个小的下拉功能。它会在主机上
-从一个**较完整的目录**中扫描实际安装的代码编辑器、IDE、终端与文件管理器 —— VS Code、
-VSCodium、Cursor、Trae、Trae Work、Zed、Windsurf、Sublime Text、Notepad++、
-JetBrains 系列、Eclipse、NetBeans、Qt Creator、OpenCode、Codex、Claude Code、Aider、
-Gemini CLI、Neovim、Helix、Micro、Vim、Windows Terminal、Alacritty、WezTerm、Tabby、
-Warp、ConEmu、Cmder、PowerShell 7、Git Bash，以及 Total Commander 等文件管理器 ——
-以及永远存在的 PowerShell、Command Prompt 与 File Explorer，只列出检测到的那些。选择
-某一项后，用该应用打开当前会话的工作目录（`cwd`）。
+在会话页头右上角用一个编辑器、IDE、终端或文件管理器打开当前项目文件夹——或者从左侧
+工作区「…」菜单打开某个工作区的文件夹。插件往会话作用域的
+`conversation.session.header.utilities` 列表贡献一个小的拆分下拉，并在工作区溢出菜单里
+加入一行 **「打开项目文件夹」**。下拉框会在主机上从一个**较完整的目录**中扫描实际安装的
+代码编辑器、IDE、终端与文件管理器 —— VS Code、VSCodium、Cursor、Trae、Trae Work、Zed、
+Windsurf、Sublime Text、Notepad++、JetBrains 系列、Eclipse、NetBeans、Qt Creator、
+OpenCode、Codex、Claude Code、Aider、Gemini CLI、Neovim、Helix、Micro、Vim、
+Windows Terminal、Alacritty、WezTerm、Tabby、Warp、ConEmu、Cmder、PowerShell 7、
+Git Bash，以及 Total Commander 等文件管理器 —— 以及永远存在的 PowerShell、Command
+Prompt 与 File Explorer，只列出检测到的那些。选择某一项后，用该应用打开当前会话的
+工作目录（`cwd`）。
 
 检测是**动态的且按平台自适应**：只有在主机上真正解析到该应用的执行文件/命令才会出现，
 因此某台机器没装某个编辑器，下拉框里就不会显示它。在 Windows 上用 PowerShell 探查
@@ -28,6 +30,14 @@ Host 半包负责检测、图标提取与进程启动；浏览器半包负责下
 
 下拉框列出主机上检测到的每个编辑器、IDE、终端与文件管理器。选择某一项后用它打开当前
 项目文件夹；勾选标记表示触发器图标在点击时会直接打开的应用。
+
+插件还会在左侧工作区「…」溢出菜单里加入一行 **「打开项目文件夹」**，位于「重命名」
+与「删除工作区」**之间**，使用 DSH 自带的描边文件夹图标：
+
+![工作区溢出菜单与「打开项目文件夹」行](docs/images/workspace-menu.png)
+
+该行与原生菜单行完全一致——同样的行高、同样的图标风格，鼠标划过不会关闭菜单——并跟随
+DSH 当前语言（中文 / English）。点击它用系统文件管理器打开该工作区的文件夹。
 
 ## 行为约定
 
