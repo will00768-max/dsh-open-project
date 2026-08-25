@@ -44,6 +44,7 @@ marks the app the trigger icon opens on a plain click.
 | Header trigger | A split control at the right edge of the session header. The **icon** shows the app that would currently be used (the **last app you opened**, or the first detected app by default) and **clicking it opens that app right away**. A caret segment beside the icon toggles the dropdown. |
 | Dropdown list | A beautified popover. One row per detected app with its real product icon, label, and a check mark on the currently selected app. Empty while detection is running, or an "No compatible app detected" placeholder when nothing matches. |
 | Choose an app | Asks the Host half to launch the app with the project folder, remembers the choice (in `localStorage`, key `dsh.open-project.last`), moves the check mark, and closes the menu. The trigger icon now shows this app. |
+| Workspace "…" menu | A **“📂 Open project folder”** (📂 打开项目文件夹) row in the left sidebar's Workspace overflow menu (the "…" beside a workspace, next to Rename / Delete workspace). Clicking it opens that Workspace's folder in the OS file manager. DSH hard-codes this menu and exposes no plugin slot on DSH 0.1.1-rc.2, so the row is mounted into the portaled menu with a DOM/React-root adapter and the folder is resolved by workspace title through the host's `open-workspace-folder` endpoint. |
 | Click outside / Esc | Closes the dropdown. |
 
 On Windows the detected set always includes PowerShell, Command Prompt, and

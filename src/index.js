@@ -8,6 +8,7 @@
 //   connection.rpc.handle('/dsh-open-project', ...)  -> endpoints:
 //     'list-apps'  -> [{ id, label, exe, mode, icon }, ...]   (payload: { path })
 //     'open-with'  -> { ok, error? }                         (payload: { appId, path })
+//     'open-workspace-folder' -> { ok, error? }              (payload: { title })
 //
 // Detection is fully dynamic and platform-aware. On Windows it runs a
 // PowerShell script (DETECT_SCRIPT, shipped as src/detect.ps1) that probes the
@@ -382,6 +383,7 @@ export function apply(ctx) {
   // demand inside the handlers (and when a handler is invoked) reflects the
   // final composition order.
   const getSub = () => ctx.get('subprocess')
+  const getRegistry = () => ctx.get('workspaceRegistry')
   const connection = ctx.get('connection')
   let detected = null
   let platform = null
@@ -477,6 +479,34 @@ export function apply(ctx) {
         })
         if (spawnHandle && spawnHandle.done) spawnHandle.done.catch((e) => console.error('[dsh-open-project] spawn error', e))
         return { ok: true, value: { launched: true } }
+      } catch (e) { return { ok: false, error: String((e && e.message) || e) } }
+    }
+    // Open a registered Workspace's folder in the OS file manager, resolved by
+    // title from the durable Workspace registry. The Workspace overflow menu has
+    // no published plugin slot in this runtime, so the client's legacy adapter
+    // reads the row title and calls this endpoint.
+    if (endpoint === 'open-workspace-folder') {
+      const title = payload && payload.title
+      if (!title) return { ok: false, error: 'missing title' }
+      const reg = getRegistry()
+      const ws = reg && typeof reg.list === 'function'
+        ? (Array.isArray(reg.list()) ? reg.list() : []).find((w) => w.title === title)
+        : undefined
+      if (!ws) return { ok: false, error: 'workspace not found: ' + title }
+      const sub = getSub()
+      if (sub === undefined) return { ok: false, error: 'subprocess unavailable' }
+      const plat = await detectPlatform()
+      const argv = plat === 'win' ? ['explorer.exe', ws.path]
+        : (plat === 'mac' ? ['open', ws.path] : ['xdg-open', ws.path])
+      try {
+        const spawnHandle = sub.spawn({
+          argv,
+          cwd: ws.path,
+          stdio: { stdin: 'ignore', stdout: 'ignore', stderr: 'ignore' },
+          graceMs: 15000,
+        })
+        if (spawnHandle && spawnHandle.done) spawnHandle.done.catch((e) => console.error('[dsh-open-project] open-workspace-folder error', e))
+        return { ok: true, value: { opened: true } }
       } catch (e) { return { ok: false, error: String((e && e.message) || e) } }
     }
     return { ok: false, error: 'unknown endpoint ' + endpoint }

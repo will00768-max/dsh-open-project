@@ -18,6 +18,13 @@
  * launches it with the current project folder (the session's cwd) and remembers
  * the choice. Only apps actually installed on the host are listed — detection is
  * dynamic.
+ *
+ * Additionally the plugin contributes a "📂 打开项目文件夹" row to the left
+ * sidebar's Workspace overflow menu ("…", Rename / Delete workspace). That menu
+ * is hard-coded by dsh-client-ui-workspace with no plugin slot in this runtime,
+ * so the row is mounted into the portaled menu with a DOM/React-root adapter
+ * (see installLegacyWorkspaceMenu) and resolves the folder by workspace title
+ * through the host's open-workspace-folder endpoint.
  */
 
 globalThis.__ModuleLoader__.load({
@@ -26,6 +33,7 @@ globalThis.__ModuleLoader__.load({
     'use strict'
     const React = require('react')
     const { useState, useCallback, useEffect } = React
+    const { createRoot } = require('react-dom/client')
 
     const LS_KEY = 'dsh.open-project.last'
     const SLOT = 'conversation.session.header.utilities'
@@ -54,6 +62,9 @@ globalThis.__ModuleLoader__.load({
 .dsw-openwith-label{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .dsw-openwith-check{color:var(--dsw-alias-state-success-primary);font-size:14px;line-height:1;flex:none}
 .dsw-openwith-empty{padding:12px 10px;font-size:12px;color:var(--dsw-alias-label-secondary)}
+.dsw-openwith-row{display:flex;align-items:center;gap:10px;width:100%;padding:8px 10px;border:0;background:transparent;color:var(--dsw-alias-label-primary);font-family:var(--dsw-font-family);font-size:13px;text-align:left;cursor:pointer;border-radius:8px}
+.dsw-openwith-row:hover{background:var(--dsw-alias-interactive-bg-hover)}
+.dsw-openwith-foldericon{width:16px;height:16px;display:inline-flex;align-items:center;justify-content:center;flex:none;color:var(--dsw-alias-label-secondary);font-size:14px;line-height:1}
 `
 
     function readLast() {
@@ -170,8 +181,103 @@ globalThis.__ModuleLoader__.load({
       )
     }
 
+    // --- Workspace "..." overflow menu: "Open project folder" row -----------
+    // DSH's Workspace overflow menu (Rename / Delete workspace) is hard-coded in
+    // dsh-client-ui-workspace and exposes no published plugin slot in this
+    // runtime (0.1.1-rc.2). We therefore add one row by observing the portaled
+    // menu and mounting a React root (createRoot) into it, mirroring the
+    // reference plugin's legacy-menu adapter. The workspace title is read from
+    // the owning row's treeitem text, and the host resolves title -> path and
+    // opens it.
+
+    function WorkspaceMenuRow(props) {
+      const { label, onOpenFolder, onClose } = props
+      return React.createElement('button', {
+        type: 'button',
+        role: 'menuitem',
+        className: 'dsw-openwith-row',
+        onClick: () => {
+          try { if (onOpenFolder) onOpenFolder() } catch (e) { console.error('[dsh-open-project] open folder error', e) }
+          if (onClose) onClose()
+        },
+      },
+        React.createElement('span', { className: 'dsw-openwith-foldericon' }, '\uD83D\uDCC2'),
+        React.createElement('span', { className: 'dsw-openwith-label' }, label),
+      )
+    }
+
+    function installLegacyWorkspaceMenu(opts) {
+      const { workspaceT, openFolderByTitle } = opts
+      const ROOT_ATTR = 'data-dsh-open-project-wsrow'
+      let active = undefined
+
+      const unmount = () => {
+        if (active === undefined) return
+        if (active.root) { try { active.root.unmount() } catch (e) { /* ignore */ } }
+        if (active.mount && active.mount.parentNode) active.mount.parentNode.removeChild(active.mount)
+        if (active.menu) active.menu.removeAttribute(ROOT_ATTR)
+        active.root = undefined; active.mount = undefined; active.menu = undefined
+      }
+
+      const isWorkspaceMenu = (menu) => {
+        const items = Array.from(menu.querySelectorAll('[role="menuitem"]')).map((el) => (el.textContent || '').trim())
+        const rename = workspaceT('rename')
+        const del = workspaceT('delete.workspace')
+        return items.includes(rename) && items.includes(del)
+      }
+
+      const mountIntoOpenMenu = () => {
+        if (active === undefined || active.root !== undefined) return
+        const menus = Array.from(globalThis.document.querySelectorAll('[role="menu"]')).filter((m) => isWorkspaceMenu(m))
+        const menu = menus[menus.length - 1]
+        if (menu === undefined || menu.hasAttribute(ROOT_ATTR)) return
+        const treeitem = active.treeitem
+        const title = treeitem ? (treeitem.textContent || '').trim() : ''
+        if (title === '') return
+        const mount = globalThis.document.createElement('div')
+        mount.setAttribute('role', 'presentation')
+        mount.setAttribute(ROOT_ATTR, '')
+        const viewport = menu.querySelector(':scope > [role="presentation"]') ?? menu
+        viewport.appendChild(mount)
+        menu.setAttribute(ROOT_ATTR, '')
+        const root = createRoot(mount)
+        active.menu = menu; active.mount = mount; active.root = root
+        root.render(React.createElement(WorkspaceMenuRow, {
+          label: '\u6253\u5F00\u9879\u76EE\u6587\u4EF6\u5939',
+          onOpenFolder: () => { void openFolderByTitle(title) },
+          onClose: () => { globalThis.document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })) },
+        }))
+      }
+
+      const observer = new MutationObserver(() => {
+        if (active !== undefined && active.menu !== undefined && !active.menu.isConnected) unmount()
+        mountIntoOpenMenu()
+      })
+      observer.observe(globalThis.document.body, { childList: true, subtree: true })
+
+      const onClick = (event) => {
+        const target = event.target
+        if (!(target instanceof Element)) return
+        const button = target.closest('button[aria-label]')
+        if (button === null) return
+        const treeitem = button.closest('[role="treeitem"]')
+        if (treeitem === null) return
+        unmount()
+        active = { treeitem, anchor: button.parentElement || button }
+        queueMicrotask(mountIntoOpenMenu)
+      }
+      globalThis.document.addEventListener('click', onClick, true)
+
+      return () => {
+        globalThis.document.removeEventListener('click', onClick, true)
+        observer.disconnect()
+        unmount()
+        active = undefined
+      }
+    }
+
     return {
-      inject: ['slots', 'connection'],
+      inject: ['slots', 'connection', 'locale'],
       apply(ctx) {
         const slots = ctx.get('slots')
         if (slots === undefined) return
@@ -187,6 +293,12 @@ globalThis.__ModuleLoader__.load({
         // Resolve connection lazily so the handlers survive a reconnect/remount.
         const listApps = (path) => { const c = ctx.get('connection'); return c === undefined ? Promise.resolve([]) : c.rpc.call(CHANNEL, 'list-apps', { path }) }
         const openWith = (appId, path) => { const c = ctx.get('connection'); return c === undefined ? Promise.resolve({ ok: false, error: 'no connection' }) : c.rpc.call(CHANNEL, 'open-with', { appId, path }) }
+        const openFolderByTitle = (title) => { const c = ctx.get('connection'); return c === undefined ? Promise.resolve({ ok: false, error: 'no connection' }) : c.rpc.call(CHANNEL, 'open-workspace-folder', { title }) }
+        // Workspace overflow-menu row: the menu has no plugin slot on this
+        // runtime, so mount the "Open project folder" row into the portaled menu.
+        const locale = ctx.get('locale')
+        const workspaceT = locale && typeof locale.bind === 'function' ? locale.bind('workspace') : () => ''
+        ctx.effect(() => installLegacyWorkspaceMenu({ workspaceT, openFolderByTitle }), 'dsh-open-project: workspace legacy menu')
         const injectProps = () => ({ listApps, openWith })
         slots.inject(SLOT, () => slots.register({
           name: SLOT,

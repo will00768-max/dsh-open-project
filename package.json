@@ -1,6 +1,6 @@
 {
   "name": "dsh-open-project",
-  "version": "0.1.7",
+  "version": "0.1.8",
   "description": "Open the current project folder with a detected editor or terminal from the conversation header.",
   "repository": {
     "type": "git",
