@@ -29,6 +29,14 @@ The browser half owns the dropdown, its interaction state (open/closed, loaded
 apps), the selected app, and the style sheet. They talk over the package-private
 Client→Host RPC: `list-apps` and `open-with`.
 
+## Preview
+
+![Open with dropdown listing detected editors and terminals](docs/images/dropdown.png)
+
+The dropdown lists each editor, IDE, terminal, and file manager detected on the
+host. Choosing one launches it with the current project folder; the check mark
+marks the app the trigger icon opens on a plain click.
+
 ## Behavior contract
 
 | Entry point | Result |

@@ -1,6 +1,6 @@
 {
   "name": "dsh-open-project",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "Open the current project folder with a detected editor or terminal from the conversation header.",
   "repository": {
     "type": "git",
@@ -15,6 +15,7 @@
   },
   "files": [
     "src",
+    "docs",
     "README.md",
     "README.zh.md",
     "cordis.patch.yml",
