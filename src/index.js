@@ -394,11 +394,11 @@ export function apply(ctx) {
   const detectPlatform = async () => {
     if (platform) return platform
     const sub = getSub()
-    if (sub === undefined) { platform = 'win'; console.error('[open-with] subprocess service unavailable; mis-detecting as win'); return platform }
-    try { await sub.resolveExecutable('cmd.exe'); platform = 'win'; console.log('[open-with] platform=win'); return platform } catch {}
-    try { await sub.resolveExecutable('open'); platform = 'mac'; console.log('[open-with] platform=mac'); return platform } catch {}
+    if (sub === undefined) { platform = 'win'; console.error('[dsh-open-project] subprocess service unavailable; mis-detecting as win'); return platform }
+    try { await sub.resolveExecutable('cmd.exe'); platform = 'win'; console.log('[dsh-open-project] platform=win'); return platform } catch {}
+    try { await sub.resolveExecutable('open'); platform = 'mac'; console.log('[dsh-open-project] platform=mac'); return platform } catch {}
     platform = 'linux'
-    console.log('[open-with] platform=linux')
+    console.log('[dsh-open-project] platform=linux')
     return platform
   }
   const detectUnix = async () => {
@@ -409,7 +409,7 @@ export function apply(ctx) {
       if (!exe) for (const p of (a.paths || [])) { exe = await resolveCmd(p); if (exe) break }
       if (exe) out.push({ id: a.id, label: a.label, exe: exe, mode: a.mode, icon: '' })
     }
-    console.log('[open-with] detected ' + out.length + ' unix app(s): ' + out.map((a) => a.id).join(','))
+    console.log('[dsh-open-project] detected ' + out.length + ' unix app(s): ' + out.map((a) => a.id).join(','))
     return out
   }
   const detectWin = async (cwd) => {
@@ -423,13 +423,13 @@ export function apply(ctx) {
         graceMs: 20000,
       })
       const outcome = await handle.done
-      if (outcome.exitCode !== 0) { console.error('[open-with] detectWin exit code ' + outcome.exitCode); return [] }
+      if (outcome.exitCode !== 0) { console.error('[dsh-open-project] detectWin exit code ' + outcome.exitCode); return [] }
       const stdout = handle.collected.stdout ? handle.collected.stdout.readFrom(0).text : ''
       const parsed = JSON.parse(stdout)
       const list = Array.isArray(parsed) ? parsed : []
-      console.log('[open-with] detected ' + list.length + ' windows app(s): ' + list.map((a) => a.id).join(','))
+      console.log('[dsh-open-project] detected ' + list.length + ' windows app(s): ' + list.map((a) => a.id).join(','))
       return list
-    } catch (e) { console.error('open-with detect error', e); return [] }
+    } catch (e) { console.error('[dsh-open-project] detect error', e); return [] }
   }
   const detect = async (cwd) => {
     const plat = await detectPlatform()
@@ -475,7 +475,7 @@ export function apply(ctx) {
           stdio: { stdin: 'ignore', stdout: 'ignore', stderr: 'ignore' },
           graceMs: 15000,
         })
-        if (spawnHandle && spawnHandle.done) spawnHandle.done.catch((e) => console.error('open-with spawn error', e))
+        if (spawnHandle && spawnHandle.done) spawnHandle.done.catch((e) => console.error('[dsh-open-project] spawn error', e))
         return { ok: true, value: { launched: true } }
       } catch (e) { return { ok: false, error: String((e && e.message) || e) } }
     }
