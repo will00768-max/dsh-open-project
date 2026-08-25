@@ -32,13 +32,40 @@ globalThis.__ModuleLoader__.load({
   factory(require) {
     'use strict'
     const React = require('react')
-    const { useState, useCallback, useEffect } = React
+    const { useState, useCallback, useEffect, useSyncExternalStore } = React
     const { createRoot } = require('react-dom/client')
+    const primitives = require('@deepseek-ai/dsh-client-ui-primitives')
 
     const LS_KEY = 'dsh.open-project.last'
     const SLOT = 'conversation.session.header.utilities'
     const ID = 'open-with'
     const CHANNEL = '/dsh-open-project'
+    // Plugin locale namespace + dictionaries: text follows DSH's current
+    // language (the plugin registers its own namespace and reads it through
+    // ctx.locale.bind, so switching DSH between zh and en updates our copy).
+    const NS = 'open-project'
+    const LOCALES = {
+      zh: {
+        detecting: '正在检测已安装的应用…',
+        none: '未检测到兼容的应用',
+        noneDetail: '未检测到兼容的应用（{platform}）',
+        subprocessUnavailable: '，子进程不可用',
+        openWith: '用 {name} 打开',
+        openWithGeneric: '用应用打开',
+        chooseApp: '选择应用',
+        openInExplorer: '打开项目文件夹',
+      },
+      en: {
+        detecting: 'Detecting installed apps…',
+        none: 'No compatible app detected',
+        noneDetail: 'No compatible app detected ({platform})',
+        subprocessUnavailable: ', subprocess unavailable',
+        openWith: 'Open with {name}',
+        openWithGeneric: 'Open with',
+        chooseApp: 'Choose an app',
+        openInExplorer: 'Open project folder',
+      },
+    }
 
     const css = `
 .dsw-openwith-root{position:relative;display:inline-flex;align-items:center}
@@ -65,7 +92,8 @@ globalThis.__ModuleLoader__.load({
 .dsw-openwith-row{display:flex;align-items:center;gap:8px;width:100%;min-height:40px;padding:8px 10px;border:0;border-radius:10px;background:transparent;color:var(--dsw-alias-label-primary);font-family:var(--dsw-font-family);font-size:14px;line-height:22px;text-align:left;cursor:pointer}
 .dsw-openwith-row:hover{background:var(--dsw-alias-interactive-bg-hover)}
 .dsw-openwith-row:focus-visible{outline:2px solid var(--dsw-alias-brand-primary);outline-offset:-2px}
-.dsw-openwith-foldericon{width:16px;height:16px;display:inline-flex;align-items:center;justify-content:center;flex:none;color:var(--dsw-alias-label-tertiary);font-size:14px;line-height:1}
+.dsw-openwith-foldericon{width:16px;height:16px;display:inline-flex;align-items:center;justify-content:center;flex:none;color:var(--dsw-alias-label-secondary)}
+.dsw-openwith-foldericon svg{width:16px;height:16px;display:block}
 `
 
     function readLast() {
@@ -81,13 +109,18 @@ globalThis.__ModuleLoader__.load({
     }
 
     function OpenWithMenu(props) {
-      const { sessionId, useSessions, listApps, openWith } = props
+      const { sessionId, useSessions, listApps, openWith, t, localeStore } = props
       const [open, setOpen] = useState(false)
       const [apps, setApps] = useState(null)
       const [loading, setLoading] = useState(true)
       const [activeId, setActiveId] = useState(null)
       const [debug, setDebug] = useState(null)
       const cwd = useSessions((s) => sessionId ? s.byId[sessionId]?.cwd : undefined)
+      // Re-render when DSH's locale changes so the copy follows the system language.
+      useSyncExternalStore(
+        localeStore ? localeStore.subscribe : () => () => {},
+        localeStore ? localeStore.getSnapshot : () => undefined,
+      )
 
       const fetchApps = useCallback(() => {
         if (!cwd) { setApps([]); setLoading(false); return }
@@ -142,14 +175,14 @@ globalThis.__ModuleLoader__.load({
       const openActive = () => { if (active) launch(active) }
       const mainBtn = React.createElement('button', {
         className: 'dsw-openwith-main',
-        title: active ? 'Open with ' + active.label : 'Open with',
-        'aria-label': active ? 'Open with ' + active.label : 'Open with',
+        title: active ? t('openWith', { name: active.label }) : t('openWithGeneric'),
+        'aria-label': active ? t('openWith', { name: active.label }) : t('openWithGeneric'),
         onClick: openActive,
       }, triggerIcon)
       const caretBtn = React.createElement('button', {
         className: 'dsw-openwith-caretbtn',
-        title: 'Choose an app',
-        'aria-label': 'Choose an app',
+        title: t('chooseApp'),
+        'aria-label': t('chooseApp'),
         onClick: () => setOpen((v) => !v),
       }, caret)
       const trigger = React.createElement('div', { className: 'dsw-openwith-trigger' }, mainBtn, caretBtn)
@@ -157,10 +190,10 @@ globalThis.__ModuleLoader__.load({
       if (!open) return React.createElement('div', { className: 'dsw-openwith-root' }, trigger)
 
       const items = loading
-        ? React.createElement('div', { className: 'dsw-openwith-empty' }, 'Detecting installed apps…')
+        ? React.createElement('div', { className: 'dsw-openwith-empty' }, t('detecting'))
         : (apps.length === 0
             ? React.createElement('div', { className: 'dsw-openwith-empty' },
-                debug ? 'No compatible app detected (' + debug.platform + (debug.subprocess ? '' : ', subprocess unavailable') + ')' : 'No compatible app detected')
+                debug ? t('noneDetail', { platform: debug.platform }) + (debug.subprocess ? '' : t('subprocessUnavailable')) : t('none'))
             : React.createElement('div', { className: 'dsw-openwith-list' },
                 apps.map((app) => {
                   const isActive = app.id === activeId
@@ -202,13 +235,13 @@ globalThis.__ModuleLoader__.load({
           if (onClose) onClose()
         },
       },
-        React.createElement('span', { className: 'dsw-openwith-foldericon' }, '\uD83D\uDCC2'),
+        React.createElement('span', { className: 'dsw-openwith-foldericon' }, React.createElement(primitives.IconFolderOpenOutline16, {})),
         React.createElement('span', { className: 'dsw-openwith-label' }, label),
       )
     }
 
     function installLegacyWorkspaceMenu(opts) {
-      const { workspaceT, openFolderByTitle } = opts
+      const { workspaceT, openFolderByTitle, t } = opts
       const ROOT_ATTR = 'data-dsh-open-project-wsrow'
       let active = undefined
 
@@ -262,7 +295,7 @@ globalThis.__ModuleLoader__.load({
         const root = createRoot(mount)
         active.menu = menu; active.mount = mount; active.root = root
         root.render(React.createElement(WorkspaceMenuRow, {
-          label: '\u6253\u5F00\u9879\u76EE\u6587\u4EF6\u5939',
+          label: t('openInExplorer'),
           onOpenFolder: () => { void openFolderByTitle(title) },
           onClose: () => { globalThis.document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })) },
         }))
@@ -317,8 +350,33 @@ globalThis.__ModuleLoader__.load({
         // runtime, so mount the "Open project folder" row into the portaled menu.
         const locale = ctx.get('locale')
         const workspaceT = locale && typeof locale.bind === 'function' ? locale.bind('workspace') : () => ''
-        ctx.effect(() => installLegacyWorkspaceMenu({ workspaceT, openFolderByTitle }), 'dsh-open-project: workspace legacy menu')
-        const injectProps = () => ({ listApps, openWith })
+        // Register the plugin's own locale namespace synchronously (so bind()
+        // below can read it), and clean it up when the plugin unmounts.
+        let localeDispose
+        if (locale && typeof locale.register === 'function') {
+          try { localeDispose = locale.register(NS, LOCALES) } catch (e) { console.error('[dsh-open-project] locale register failed', e) }
+        }
+        ctx.effect(() => () => { if (localeDispose) { try { localeDispose() } catch (e) { /* ignore */ } } }, 'dsh-open-project: locale cleanup')
+        const t = locale && typeof locale.bind === 'function' ? locale.bind(NS) : ((key, params) => { const d = LOCALES.en[key]; const s = typeof d === 'string' ? d : key; return s.replace(/\{(\w+)\}/g, (m, p) => (params && params[p] !== undefined ? String(params[p]) : m)) })
+        const localeStore = (locale && typeof locale.subscribe === 'function' && typeof locale.getSnapshot === 'function')
+          ? (() => {
+              let cachedKey = undefined
+              let cached = undefined
+              return {
+                subscribe: (fn) => locale.subscribe(fn),
+                // Cache by locale id so getSnapshot returns a stable reference
+                // (useSyncExternalStore would otherwise re-render in a loop).
+                getSnapshot: () => {
+                  const s = locale.getSnapshot()
+                  const key = (s && (s.locale !== undefined ? s.locale : (s.id !== undefined ? s.id : undefined))) || (s ? JSON.stringify(s) : '')
+                  if (key !== cachedKey) { cachedKey = key; cached = s }
+                  return cached
+                },
+              }
+            })()
+          : { subscribe: () => () => {}, getSnapshot: () => undefined }
+        ctx.effect(() => installLegacyWorkspaceMenu({ workspaceT, openFolderByTitle, t }), 'dsh-open-project: workspace legacy menu')
+        const injectProps = () => ({ listApps, openWith, t, localeStore })
         slots.inject(SLOT, () => slots.register({
           name: SLOT,
           id: ID,

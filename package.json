@@ -1,7 +1,7 @@
 {
   "name": "dsh-open-project",
-  "version": "0.1.10",
-  "description": "Open the current project folder with a detected editor or terminal from the conversation header.",
+  "version": "0.1.11",
+  "description": "Open the current project folder from the conversation header with a detected editor or terminal, or from the workspace menu in the file manager.",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/will00768-max/dsh-open-project.git"
@@ -41,7 +41,9 @@
       "inject": [
         "@deepseek-ai/dsh-client-runtime",
         "@deepseek-ai/dsh-client-connection",
-        "@deepseek-ai/dsh-client-ui-conversation"
+        "@deepseek-ai/dsh-client-ui-conversation",
+        "@deepseek-ai/dsh-client-locale",
+        "@deepseek-ai/dsh-client-ui-primitives"
       ],
       "platform": "web"
     }
