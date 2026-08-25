@@ -14,9 +14,7 @@
  * icon opens the project with the app that would be used (the last one chosen,
  * or the first detected app), and the caret beside it opens a dropdown of every
  * detected editor/IDE/terminal with its product icon (a letter badge when an
- * entry has no extractable icon, e.g. CLI tools on Linux/macOS). The dropdown's
- * first, always-present row opens the project folder in the OS file manager
- * (📂 打开项目文件夹) via the `open-folder` endpoint. Choosing a detected app
+ * entry has no extractable icon, e.g. CLI tools on Linux/macOS). Choosing one
  * launches it with the current project folder (the session's cwd) and remembers
  * the choice. Only apps actually installed on the host are listed — detection is
  * dynamic.
@@ -56,10 +54,6 @@ globalThis.__ModuleLoader__.load({
 .dsw-openwith-label{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .dsw-openwith-check{color:var(--dsw-alias-state-success-primary);font-size:14px;line-height:1;flex:none}
 .dsw-openwith-empty{padding:12px 10px;font-size:12px;color:var(--dsw-alias-label-secondary)}
-.dsw-openwith-menu{display:flex;flex-direction:column;gap:1px}
-.dsw-openwith-divider{height:1px;margin:4px 6px;background:var(--dsw-alias-border-l2);flex:none}
-.dsw-openwith-openfolder{font-weight:600}
-.dsw-openwith-foldericon{width:18px;height:18px;display:inline-flex;align-items:center;justify-content:center;flex:none;font-size:14px;line-height:1}
 `
 
     function readLast() {
@@ -75,7 +69,7 @@ globalThis.__ModuleLoader__.load({
     }
 
     function OpenWithMenu(props) {
-      const { sessionId, useSessions, listApps, openWith, openFolder } = props
+      const { sessionId, useSessions, listApps, openWith } = props
       const [open, setOpen] = useState(false)
       const [apps, setApps] = useState(null)
       const [loading, setLoading] = useState(true)
@@ -150,14 +144,7 @@ globalThis.__ModuleLoader__.load({
 
       if (!open) return React.createElement('div', { className: 'dsw-openwith-root' }, trigger)
 
-      const openFolderRow = React.createElement('button', {
-        className: 'dsw-openwith-item dsw-openwith-openfolder',
-        onClick: () => { openFolder(cwd); setOpen(false) },
-      },
-        React.createElement('span', { className: 'dsw-openwith-foldericon' }, '\uD83D\uDCC2'),
-        React.createElement('span', { className: 'dsw-openwith-label' }, '\u6253\u5F00\u9879\u76EE\u6587\u4EF6\u5939'),
-      )
-      const listBody = loading
+      const items = loading
         ? React.createElement('div', { className: 'dsw-openwith-empty' }, 'Detecting installed apps…')
         : (apps.length === 0
             ? React.createElement('div', { className: 'dsw-openwith-empty' },
@@ -175,11 +162,6 @@ globalThis.__ModuleLoader__.load({
                     isActive ? React.createElement('span', { className: 'dsw-openwith-check' }, '\u2713') : null,
                   )
                 })))
-      const items = React.createElement('div', { className: 'dsw-openwith-menu' },
-        openFolderRow,
-        React.createElement('div', { className: 'dsw-openwith-divider' }),
-        listBody,
-      )
 
       return React.createElement('div', { className: 'dsw-openwith-root' },
         trigger,
@@ -205,8 +187,7 @@ globalThis.__ModuleLoader__.load({
         // Resolve connection lazily so the handlers survive a reconnect/remount.
         const listApps = (path) => { const c = ctx.get('connection'); return c === undefined ? Promise.resolve([]) : c.rpc.call(CHANNEL, 'list-apps', { path }) }
         const openWith = (appId, path) => { const c = ctx.get('connection'); return c === undefined ? Promise.resolve({ ok: false, error: 'no connection' }) : c.rpc.call(CHANNEL, 'open-with', { appId, path }) }
-        const openFolder = (path) => { const c = ctx.get('connection'); return c === undefined ? Promise.resolve({ ok: false, error: 'no connection' }) : c.rpc.call(CHANNEL, 'open-folder', { path }) }
-        const injectProps = () => ({ listApps, openWith, openFolder })
+        const injectProps = () => ({ listApps, openWith })
         slots.inject(SLOT, () => slots.register({
           name: SLOT,
           id: ID,
