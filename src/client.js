@@ -80,7 +80,10 @@ globalThis.__ModuleLoader__.load({
       const fetchApps = useCallback(() => {
         if (!cwd) { setApps([]); setLoading(false); return }
         listApps(cwd).then((res) => {
-          const payload = res && !Array.isArray(res) ? res : { apps: Array.isArray(res) ? res : [] }
+          // The generic Connection RPC wraps the host reply in its own
+          // { ok:true, value } envelope; unwrap it to get the { apps, debug } body.
+          const value = res && typeof res === 'object' && res.ok === true && 'value' in res ? res.value : res
+          const payload = value && !Array.isArray(value) ? value : { apps: Array.isArray(value) ? value : [] }
           const list = Array.isArray(payload.apps) ? payload.apps : []
           setApps(list)
           setLoading(false)

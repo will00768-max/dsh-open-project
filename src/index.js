@@ -441,6 +441,9 @@ export function apply(ctx) {
   // authority: 'loopback' — this RPC channel only serves the local loopback,
   // which matches the "open a local editor/terminal" semantic of this plugin.
   connection.rpc.handle('/dsh-open-project', async (endpoint, payload) => {
+    // The generic Connection RPC wraps every handler return in its own
+    // { ok:true, value } / { ok:false, error } envelope (the client's
+    // rpcResultSchema), so we return a value that a client can read via res.value.
     if (endpoint === 'list-apps') {
       const path = payload && payload.path
       // Detection is expensive (~2s); cache the result so repeated dropdown opens
@@ -448,8 +451,11 @@ export function apply(ctx) {
       // the cache is reset whenever the plugin is re-applied (detected = null).
       if (!detected) detected = await detect(path)
       return {
-        apps: detected,
-        debug: { platform: await detectPlatform(), subprocess: getSub() !== undefined },
+        ok: true,
+        value: {
+          apps: detected,
+          debug: { platform: await detectPlatform(), subprocess: getSub() !== undefined },
+        },
       }
     }
     if (endpoint === 'open-with') {
@@ -470,9 +476,9 @@ export function apply(ctx) {
           graceMs: 15000,
         })
         if (spawnHandle && spawnHandle.done) spawnHandle.done.catch((e) => console.error('open-with spawn error', e))
-        return { ok: true }
-      } catch (e) { console.error('open-with error', e); return { ok: false, error: String((e && e.message) || e) } }
+        return { ok: true, value: { launched: true } }
+      } catch (e) { return { ok: false, error: String((e && e.message) || e) } }
     }
-    throw new Error('unknown endpoint ' + endpoint)
+    return { ok: false, error: 'unknown endpoint ' + endpoint }
   }, { authority: 'loopback' })
 }
