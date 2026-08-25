@@ -42,7 +42,7 @@ marks the app the trigger icon opens on a plain click.
 | Entry point | Result |
 |---|---|
 | Header trigger | A split control at the right edge of the session header. The **icon** shows the app that would currently be used (the **last app you opened**, or the first detected app by default) and **clicking it opens that app right away**. A caret segment beside the icon toggles the dropdown. |
-| Dropdown list | A beautified popover. One row per detected app with its real product icon, label, and a check mark on the currently selected app. Empty while detection is running, or an "No compatible app detected" placeholder when nothing matches. |
+| Dropdown list | A beautified popover. Its **first row is always present — “📂 Open project folder”** (📂 打开项目文件夹) — which launches the project folder in the OS file manager (`explorer.exe` on Windows, `open` on macOS, `xdg-open` on Linux). Below it, one row per detected app with its real product icon, label, and a check mark on the currently selected app. Empty while detection is running, or an "No compatible app detected" placeholder when nothing matches. |
 | Choose an app | Asks the Host half to launch the app with the project folder, remembers the choice (in `localStorage`, key `dsh.open-project.last`), moves the check mark, and closes the menu. The trigger icon now shows this app. |
 | Click outside / Esc | Closes the dropdown. |
 

@@ -6,8 +6,9 @@
 // calls back into two package-private RPC methods:
 //
 //   connection.rpc.handle('/dsh-open-project', ...)  -> endpoints:
-//     'list-apps'  -> [{ id, label, exe, mode, icon }, ...]   (payload: { path })
-//     'open-with'  -> { ok, error? }                         (payload: { appId, path })
+//     'list-apps'   -> { apps, debug }                        (payload: { path })
+//     'open-with'   -> { ok, error? }                         (payload: { appId, path })
+//     'open-folder' -> { ok, error? }                         (payload: { path })
 //
 // Detection is fully dynamic and platform-aware. On Windows it runs a
 // PowerShell script (DETECT_SCRIPT, shipped as src/detect.ps1) that probes the
@@ -477,6 +478,26 @@ export function apply(ctx) {
         })
         if (spawnHandle && spawnHandle.done) spawnHandle.done.catch((e) => console.error('[dsh-open-project] spawn error', e))
         return { ok: true, value: { launched: true } }
+      } catch (e) { return { ok: false, error: String((e && e.message) || e) } }
+    }
+    // Always-available "open the project folder in the OS file manager" action.
+    if (endpoint === 'open-folder') {
+      const path = payload && payload.path
+      if (!path) return { ok: false, error: 'missing path' }
+      const sub = getSub()
+      if (sub === undefined) return { ok: false, error: 'subprocess unavailable' }
+      const plat = await detectPlatform()
+      const argv = plat === 'win' ? ['explorer.exe', path]
+        : (plat === 'mac' ? ['open', path] : ['xdg-open', path])
+      try {
+        const spawnHandle = sub.spawn({
+          argv,
+          cwd: path,
+          stdio: { stdin: 'ignore', stdout: 'ignore', stderr: 'ignore' },
+          graceMs: 15000,
+        })
+        if (spawnHandle && spawnHandle.done) spawnHandle.done.catch((e) => console.error('[dsh-open-project] open-folder error', e))
+        return { ok: true, value: { opened: true } }
       } catch (e) { return { ok: false, error: String((e && e.message) || e) } }
     }
     return { ok: false, error: 'unknown endpoint ' + endpoint }
