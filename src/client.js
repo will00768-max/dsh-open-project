@@ -223,7 +223,9 @@ globalThis.__ModuleLoader__.load({
         const items = Array.from(menu.querySelectorAll('[role="menuitem"]')).map((el) => (el.textContent || '').trim())
         const rename = workspaceT('rename')
         const del = workspaceT('delete.workspace')
-        return items.includes(rename) && items.includes(del)
+        const hasRename = items.some((l) => l === rename || l === 'Rename' || l === '重命名' || l === 'rename')
+        const hasDelete = items.some((l) => l === del || /delete\s+workspace/i.test(l) || /删除工作区/.test(l) || l === 'Delete workspace' || l === 'delete workspace')
+        return hasRename && hasDelete
       }
 
       const mountIntoOpenMenu = () => {
