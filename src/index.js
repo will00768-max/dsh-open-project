@@ -423,10 +423,12 @@ export function apply(ctx) {
         graceMs: 20000,
       })
       const outcome = await handle.done
-      if (outcome.exitCode !== 0) return []
+      if (outcome.exitCode !== 0) { console.error('[open-with] detectWin exit code ' + outcome.exitCode); return [] }
       const stdout = handle.collected.stdout ? handle.collected.stdout.readFrom(0).text : ''
       const parsed = JSON.parse(stdout)
-      return Array.isArray(parsed) ? parsed : []
+      const list = Array.isArray(parsed) ? parsed : []
+      console.log('[open-with] detected ' + list.length + ' windows app(s): ' + list.map((a) => a.id).join(','))
+      return list
     } catch (e) { console.error('open-with detect error', e); return [] }
   }
   const detect = async (cwd) => {
